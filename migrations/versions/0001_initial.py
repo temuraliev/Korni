@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0001_initial"
 down_revision: Union[str, None] = None
@@ -54,10 +55,20 @@ def upgrade() -> None:
     )
     op.create_index("ix_events_category_id", "events", ["category_id"])
 
-    sa.Enum("pending", "confirmed", "cancelled", name="booking_status").create(
-        op.get_bind(), checkfirst=True
+    # Создаём ENUM-типы через DO-блок: идемпотентно, не зависит от того, остались ли
+    # они от прошлых неудачных деплоев.
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE booking_status AS ENUM ('pending', 'confirmed', 'cancelled'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
     )
-    booking_status_col = sa.Enum(
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE callback_status AS ENUM ('pending', 'done'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+
+    booking_status_col = postgresql.ENUM(
         "pending", "confirmed", "cancelled", name="booking_status", create_type=False
     )
     op.create_table(
@@ -72,8 +83,7 @@ def upgrade() -> None:
     op.create_index("ix_bookings_user_id", "bookings", ["user_id"])
     op.create_index("ix_bookings_event_id", "bookings", ["event_id"])
 
-    sa.Enum("pending", "done", name="callback_status").create(op.get_bind(), checkfirst=True)
-    callback_status_col = sa.Enum(
+    callback_status_col = postgresql.ENUM(
         "pending", "done", name="callback_status", create_type=False
     )
     op.create_table(
