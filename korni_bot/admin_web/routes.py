@@ -27,6 +27,8 @@ from korni_bot.db.models import (
     CallbackStatus,
     Category,
     Event,
+    EventPhoto,
+    EventPhotoKind,
     User,
 )
 
@@ -179,6 +181,8 @@ async def event_create(
     event_date: str = Form(""),
     is_active: str = Form(""),
     photo: UploadFile | None = File(None),
+    event_photos: list[UploadFile] = File(default_factory=list),
+    teacher_photos: list[UploadFile] = File(default_factory=list),
     admin: str = AdminDep,
     session: AsyncSession = DbDep,
     bot: Bot = BotDep,
@@ -195,6 +199,11 @@ async def event_create(
         is_active=is_active == "on",
     )
     session.add(event)
+    await session.flush()
+
+    await _attach_photos(bot, session, event.id, event_photos, EventPhotoKind.event, title)
+    await _attach_photos(bot, session, event.id, teacher_photos, EventPhotoKind.teacher, title)
+
     await session.commit()
     return RedirectResponse("/admin/events", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -207,7 +216,21 @@ async def event_edit_form(
     if event is None:
         raise HTTPException(404)
     categories = list(await session.scalars(select(Category).order_by(Category.sort_order)))
-    return _render(request, "event_form.html", event=event, categories=categories)
+    photos = list(
+        await session.scalars(
+            select(EventPhoto).where(EventPhoto.event_id == event_id).order_by(EventPhoto.sort_order, EventPhoto.id)
+        )
+    )
+    event_photos = [p for p in photos if p.kind == EventPhotoKind.event]
+    teacher_photos = [p for p in photos if p.kind == EventPhotoKind.teacher]
+    return _render(
+        request,
+        "event_form.html",
+        event=event,
+        categories=categories,
+        event_photos=event_photos,
+        teacher_photos=teacher_photos,
+    )
 
 
 @router.post("/events/{event_id}/update")
@@ -222,6 +245,8 @@ async def event_update(
     is_active: str = Form(""),
     photo: UploadFile | None = File(None),
     keep_photo: str = Form("on"),
+    event_photos: list[UploadFile] = File(default_factory=list),
+    teacher_photos: list[UploadFile] = File(default_factory=list),
     admin: str = AdminDep,
     session: AsyncSession = DbDep,
     bot: Bot = BotDep,
@@ -240,8 +265,26 @@ async def event_update(
         event.photo_file_id = await _upload_photo(bot, photo, title)
     elif keep_photo != "on":
         event.photo_file_id = None
+
+    await _attach_photos(bot, session, event.id, event_photos, EventPhotoKind.event, title)
+    await _attach_photos(bot, session, event.id, teacher_photos, EventPhotoKind.teacher, title)
+
     await session.commit()
-    return RedirectResponse("/admin/events", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/admin/events/{event_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/events/{event_id}/photos/{photo_id}/delete")
+async def event_photo_delete(
+    event_id: int,
+    photo_id: int,
+    admin: str = AdminDep,
+    session: AsyncSession = DbDep,
+):
+    await session.execute(
+        delete(EventPhoto).where(EventPhoto.id == photo_id, EventPhoto.event_id == event_id)
+    )
+    await session.commit()
+    return RedirectResponse(f"/admin/events/{event_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/events/{event_id}/delete")
@@ -357,6 +400,34 @@ async def broadcast_send(
 
 
 _upload_logger = logging.getLogger(__name__)
+
+
+async def _attach_photos(
+    bot: Bot,
+    session: AsyncSession,
+    event_id: int,
+    photos: list[UploadFile],
+    kind: EventPhotoKind,
+    label: str,
+) -> None:
+    """Грузит пачку файлов в админ-группу, сохраняет file_id в event_photos.
+    Каждое неудачное фото тихо пропускается (логируется в _upload_photo)."""
+    if not photos:
+        return
+    # Стартовый sort_order — в конец списка.
+    existing_max = await session.scalar(
+        select(func.coalesce(func.max(EventPhoto.sort_order), -1))
+        .where(EventPhoto.event_id == event_id, EventPhoto.kind == kind)
+    )
+    next_order = (existing_max or -1) + 1
+    for f in photos:
+        if not f or not f.filename:
+            continue
+        file_id = await _upload_photo(bot, f, f"{label} [{kind.value}]")
+        if not file_id:
+            continue
+        session.add(EventPhoto(event_id=event_id, kind=kind, file_id=file_id, sort_order=next_order))
+        next_order += 1
 
 
 async def _upload_photo(bot: Bot, photo: UploadFile | None, label: str) -> str | None:

@@ -20,6 +20,11 @@ class CallbackStatus(str, enum.Enum):
     done = "done"
 
 
+class EventPhotoKind(str, enum.Enum):
+    event = "event"
+    teacher = "teacher"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -65,6 +70,26 @@ class Event(Base):
     category: Mapped[Category] = relationship(back_populates="events")
     bookings: Mapped[list[Booking]] = relationship(back_populates="event", cascade="all, delete-orphan")
     callbacks: Mapped[list[Callback]] = relationship(back_populates="event", cascade="all, delete-orphan")
+    photos: Mapped[list[EventPhoto]] = relationship(
+        back_populates="event", cascade="all, delete-orphan", order_by="EventPhoto.sort_order, EventPhoto.id"
+    )
+
+
+class EventPhoto(Base):
+    __tablename__ = "event_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[EventPhotoKind] = mapped_column(
+        Enum(EventPhotoKind, name="event_photo_kind"),
+        default=EventPhotoKind.event,
+        server_default=EventPhotoKind.event.value,
+    )
+    file_id: Mapped[str] = mapped_column(String(256))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped[Event] = relationship(back_populates="photos")
 
 
 class Booking(Base):

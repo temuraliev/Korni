@@ -43,12 +43,50 @@
         </div>
     </div>
 
-    <label>Фото (jpg/png, до 10 МБ)</label>
+    <label>Обложка (главное фото, одно)</label>
     <input type="file" name="photo" accept="image/*">
     {% if event and event.photo_file_id %}
     <div class="muted" style="margin-top:6px">
-        Фото уже загружено (file_id: <code>{{ event.photo_file_id[:24] }}…</code>)
+        Обложка уже загружена (file_id: <code>{{ event.photo_file_id[:24] }}…</code>)
         <label style="display:inline"><input type="checkbox" name="keep_photo" checked> оставить</label>
+    </div>
+    {% endif %}
+
+    <label style="margin-top:16px">Дополнительные фото мероприятия (можно выбрать несколько)</label>
+    <input type="file" name="event_photos" accept="image/*" multiple>
+    {% if event_photos %}
+    <div class="muted" style="margin-top:6px">
+        Уже загружено: {{ event_photos|length }} шт.
+        <ul style="margin:6px 0 0 0; padding-left:20px">
+        {% for p in event_photos %}
+            <li>
+                <code>{{ p.file_id[:24] }}…</code>
+                <button type="submit" class="btn secondary"
+                        formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
+                        formnovalidate
+                        style="padding:2px 8px; font-size:12px; margin-left:8px">удалить</button>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <label style="margin-top:16px">Фото ведущего / преподавателя (можно несколько)</label>
+    <input type="file" name="teacher_photos" accept="image/*" multiple>
+    {% if teacher_photos %}
+    <div class="muted" style="margin-top:6px">
+        Уже загружено: {{ teacher_photos|length }} шт.
+        <ul style="margin:6px 0 0 0; padding-left:20px">
+        {% for p in teacher_photos %}
+            <li>
+                <code>{{ p.file_id[:24] }}…</code>
+                <button type="submit" class="btn secondary"
+                        formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
+                        formnovalidate
+                        style="padding:2px 8px; font-size:12px; margin-left:8px">удалить</button>
+            </li>
+        {% endfor %}
+        </ul>
     </div>
     {% endif %}
 

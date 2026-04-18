@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Contact, Message
+from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,16 @@ from korni_bot.bot import texts
 from korni_bot.bot.callbacks import BackCB, CategoryCB, EventActionCB, EventCB
 from korni_bot.bot.handlers.admin_chat import deliver_to_admins
 from korni_bot.bot.states import BookingFlow, CallbackFlow, QuestionFlow
-from korni_bot.db.models import Booking, BookingStatus, Callback, Category, Event, User
+from korni_bot.db.models import (
+    Booking,
+    BookingStatus,
+    Callback,
+    Category,
+    Event,
+    EventPhoto,
+    EventPhotoKind,
+    User,
+)
 
 router = Router(name="catalog")
 
@@ -66,13 +75,33 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
     )
     seats_left = max(0, event.total_seats - (booked or 0))
     caption = _format_event_caption(event, seats_left)
-    assert cb.message is not None
+
+    photo_ids: list[str] = []
     if event.photo_file_id:
-        await cb.message.answer_photo(
-            photo=event.photo_file_id, caption=caption, reply_markup=kb.event_actions_kb(event.id)
-        )
+        photo_ids.append(event.photo_file_id)
+    extra = await session.scalars(
+        select(EventPhoto.file_id)
+        .where(EventPhoto.event_id == event.id, EventPhoto.kind == EventPhotoKind.event)
+        .order_by(EventPhoto.sort_order, EventPhoto.id)
+    )
+    photo_ids.extend(extra)
+    # Telegram media group — до 10 элементов.
+    photo_ids = photo_ids[:10]
+
+    assert cb.message is not None
+    action_kb = kb.event_actions_kb(event.id)
+    if len(photo_ids) >= 2:
+        media = [
+            InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
+            for i, fid in enumerate(photo_ids)
+        ]
+        await cb.message.answer_media_group(media)
+        # К media-group нельзя прикрепить inline-кнопки — отдаём их отдельным сообщением.
+        await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
+    elif len(photo_ids) == 1:
+        await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
     else:
-        await cb.message.answer(caption, reply_markup=kb.event_actions_kb(event.id))
+        await cb.message.answer(caption, reply_markup=action_kb)
     await cb.answer()
 
 
@@ -96,7 +125,29 @@ async def on_teacher(cb: CallbackQuery, callback_data: EventActionCB, session: A
     event = await session.get(Event, callback_data.event_id)
     text = (event.teacher_info if event and event.teacher_info else texts.TEACHER_FALLBACK)
     assert cb.message is not None
-    await cb.message.answer(text, reply_markup=kb.back_to_category_kb(event.category_id if event else 0))
+
+    teacher_photo_ids: list[str] = []
+    if event is not None:
+        rows = await session.scalars(
+            select(EventPhoto.file_id)
+            .where(EventPhoto.event_id == event.id, EventPhoto.kind == EventPhotoKind.teacher)
+            .order_by(EventPhoto.sort_order, EventPhoto.id)
+        )
+        teacher_photo_ids = list(rows)[:10]
+
+    back_kb = kb.back_to_category_kb(event.category_id if event else 0)
+
+    if len(teacher_photo_ids) >= 2:
+        media = [
+            InputMediaPhoto(media=fid, caption=text if i == 0 else None, parse_mode="HTML")
+            for i, fid in enumerate(teacher_photo_ids)
+        ]
+        await cb.message.answer_media_group(media)
+        await cb.message.answer("◀️ Назад к мероприятиям", reply_markup=back_kb)
+    elif len(teacher_photo_ids) == 1:
+        await cb.message.answer_photo(photo=teacher_photo_ids[0], caption=text, reply_markup=back_kb)
+    else:
+        await cb.message.answer(text, reply_markup=back_kb)
     await cb.answer()
 
 
