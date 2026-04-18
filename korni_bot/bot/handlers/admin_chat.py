@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from korni_bot.bot import texts
 from korni_bot.config import get_settings
-from korni_bot.db.models import MessageMap, User
+from korni_bot.db.models import DialogDirection, DialogMessage, MessageMap, User
 
 router = Router(name="admin_chat")
 logger = logging.getLogger(__name__)
@@ -98,23 +98,48 @@ async def on_admin_reply(message: Message, session: AsyncSession) -> None:
         await message.reply("⚠️ Пользователь недоступен.")
         return
 
+    log_content_type = "text"
+    log_text: str | None = None
+    log_file_id: str | None = None
     try:
         if message.text:
             await bot.send_message(mapping.user_tg_id, texts.ADMIN_REPLY_PREFIX + message.text)
+            log_text = message.text
         elif message.photo:
             caption = (texts.ADMIN_REPLY_PREFIX + (message.caption or "")).rstrip()
             await bot.send_photo(mapping.user_tg_id, message.photo[-1].file_id, caption=caption or None)
+            log_content_type = "photo"
+            log_text = message.caption
+            log_file_id = message.photo[-1].file_id
         elif message.document:
             caption = (texts.ADMIN_REPLY_PREFIX + (message.caption or "")).rstrip()
             await bot.send_document(mapping.user_tg_id, message.document.file_id, caption=caption or None)
+            log_content_type = "document"
+            log_text = message.caption
+            log_file_id = message.document.file_id
         elif message.voice:
             await bot.send_voice(mapping.user_tg_id, message.voice.file_id)
+            log_content_type = "voice"
+            log_file_id = message.voice.file_id
         elif message.video:
             caption = (texts.ADMIN_REPLY_PREFIX + (message.caption or "")).rstrip()
             await bot.send_video(mapping.user_tg_id, message.video.file_id, caption=caption or None)
+            log_content_type = "video"
+            log_text = message.caption
+            log_file_id = message.video.file_id
         else:
             await message.reply("⚠️ Этот тип сообщения пока не поддерживается для ответа.")
             return
+        session.add(
+            DialogMessage(
+                user_tg_id=mapping.user_tg_id,
+                direction=DialogDirection.out,
+                content_type=log_content_type,
+                text=log_text,
+                file_id=log_file_id,
+            )
+        )
+        await session.commit()
         await message.reply("✅ Отправлено")
     except Exception as e:
         await message.reply(f"❌ Не удалось доставить: {e}")

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set active = "dialogs" %}
+{% block content %}
+<style>
+.dlg-wrap { display: grid; grid-template-columns: 320px 1fr; gap: 16px; min-height: 70vh; }
+.dlg-list { background: #fff; border: 1px solid #e0dbd0; border-radius: 8px; overflow: hidden; max-height: 80vh; overflow-y: auto; }
+.dlg-list .item { display: block; padding: 12px 14px; border-bottom: 1px solid #f0ece3; text-decoration: none; color: var(--ink); }
+.dlg-list .item:hover { background: #faf7f0; }
+.dlg-list .item.active { background: #f3ebdb; }
+.dlg-list .name { font-weight: 600; font-size: 14px; }
+.dlg-list .preview { color: var(--muted); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dlg-list .time { color: var(--muted); font-size: 11px; float: right; }
+.dlg-list .empty { padding: 20px; text-align: center; color: var(--muted); }
+
+.dlg-thread { background: #fff; border: 1px solid #e0dbd0; border-radius: 8px; padding: 16px; max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column; }
+.dlg-thread .placeholder { margin: auto; color: var(--muted); text-align: center; }
+.dlg-thread h2 { margin: 0 0 12px 0; font-size: 16px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+.msg { max-width: 75%; margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; font-size: 14px; word-wrap: break-word; }
+.msg.in { align-self: flex-start; background: #f0ece3; }
+.msg.out { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg .meta { font-size: 11px; opacity: .65; margin-top: 4px; }
+.msg .kind { font-size: 12px; opacity: .7; font-style: italic; }
+</style>
+
+<h1>Диалоги</h1>
+
+<div class="dlg-wrap">
+  <div class="dlg-list">
+    {% if sidebar %}
+      {% for row in sidebar %}
+      <a class="item {% if selected_tg_id == row.tg_id %}active{% endif %}"
+         href="/admin/dialogs?user_tg_id={{ row.tg_id }}">
+        <span class="time">{{ row.last_at.strftime('%d.%m %H:%M') }}</span>
+        <div class="name">
+          {% if row.user %}
+            {{ (row.user.first_name or '') }} {{ (row.user.last_name or '') }}
+            {% if row.user.username %}<span class="muted">@{{ row.user.username }}</span>{% endif %}
+          {% else %}
+            id {{ row.tg_id }}
+          {% endif %}
+        </div>
+        <div class="preview">
+          {% if row.direction.value == 'out' %}Вы: {% endif %}{{ row.last_text }}
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty">Диалогов пока нет</div>
+    {% endif %}
+  </div>
+
+  <div class="dlg-thread">
+    {% if selected_tg_id %}
+      <h2>
+        {% if selected_user %}
+          {{ selected_user.first_name or '' }} {{ selected_user.last_name or '' }}
+          {% if selected_user.username %}<span class="muted">@{{ selected_user.username }}</span>{% endif %}
+          <span class="muted" style="font-weight:normal; font-size:12px">| id {{ selected_tg_id }}</span>
+        {% else %}
+          id {{ selected_tg_id }}
+        {% endif %}
+      </h2>
+      {% for m in thread %}
+        <div class="msg {{ m.direction.value }}">
+          {% if m.content_type != 'text' %}
+          <div class="kind">
+            {{ {'photo':'📷 фото','voice':'🎤 голосовое','video':'🎥 видео','document':'📎 файл','contact':'📞 контакт'}.get(m.content_type, m.content_type) }}
+          </div>
+          {% endif %}
+          {% if m.text %}{{ m.text }}{% endif %}
+          <div class="meta">{{ m.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+      {% else %}
+        <div class="placeholder">Сообщений пока нет</div>
+      {% endfor %}
+    {% else %}
+      <div class="placeholder">Выберите пользователя слева</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

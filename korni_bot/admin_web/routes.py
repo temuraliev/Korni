@@ -26,6 +26,8 @@ from korni_bot.db.models import (
     Callback,
     CallbackStatus,
     Category,
+    DialogDirection,
+    DialogMessage,
     Event,
     EventPhoto,
     EventPhotoKind,
@@ -344,6 +346,82 @@ async def callback_done(cb_id: int, admin: str = AdminDep, session: AsyncSession
     c.status = CallbackStatus.done
     await session.commit()
     return RedirectResponse("/admin/callbacks", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ─── Dialogs ──────────────────────────────────────────────────────────────
+
+
+@router.get("/dialogs", response_class=HTMLResponse)
+async def dialogs_page(
+    request: Request,
+    user_tg_id: int | None = None,
+    admin: str = AdminDep,
+    session: AsyncSession = DbDep,
+):
+    # Последнее сообщение по каждому юзеру — через подзапрос MAX(created_at).
+    last_ts_sq = (
+        select(
+            DialogMessage.user_tg_id,
+            func.max(DialogMessage.created_at).label("last_at"),
+        )
+        .group_by(DialogMessage.user_tg_id)
+        .subquery()
+    )
+    rows = list(
+        await session.execute(
+            select(DialogMessage, User)
+            .join(last_ts_sq, (DialogMessage.user_tg_id == last_ts_sq.c.user_tg_id)
+                  & (DialogMessage.created_at == last_ts_sq.c.last_at))
+            .outerjoin(User, User.tg_id == DialogMessage.user_tg_id)
+            .order_by(DialogMessage.created_at.desc())
+            .limit(500)
+        )
+    )
+    sidebar = [
+        {
+            "tg_id": msg.user_tg_id,
+            "user": user,
+            "last_text": _preview(msg),
+            "last_at": msg.created_at,
+            "direction": msg.direction,
+        }
+        for (msg, user) in rows
+    ]
+
+    thread = []
+    selected_user = None
+    if user_tg_id is not None:
+        thread = list(
+            await session.scalars(
+                select(DialogMessage)
+                .where(DialogMessage.user_tg_id == user_tg_id)
+                .order_by(DialogMessage.created_at.asc())
+                .limit(500)
+            )
+        )
+        selected_user = await session.scalar(select(User).where(User.tg_id == user_tg_id))
+
+    return _render(
+        request,
+        "dialogs.html",
+        sidebar=sidebar,
+        thread=thread,
+        selected_user=selected_user,
+        selected_tg_id=user_tg_id,
+    )
+
+
+def _preview(msg: DialogMessage) -> str:
+    if msg.text:
+        t = msg.text.strip().replace("\n", " ")
+        return t[:60] + ("…" if len(t) > 60 else "")
+    return {
+        "photo": "📷 фото",
+        "voice": "🎤 голосовое",
+        "video": "🎥 видео",
+        "document": "📎 файл",
+        "contact": "📞 контакт",
+    }.get(msg.content_type, "—")
 
 
 # ─── Users ────────────────────────────────────────────────────────────────

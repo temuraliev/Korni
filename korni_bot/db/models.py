@@ -140,6 +140,31 @@ class MessageMap(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class DialogDirection(str, enum.Enum):
+    in_ = "in"
+    out = "out"
+
+
+class DialogMessage(Base):
+    """Лог переписки юзер↔бот/админ для просмотра в админке.
+
+    direction='in'  — юзер написал боту (свободный текст, FSM-ввод, фото-скрин и т.п.)
+    direction='out' — ответ админа, ушедший юзеру (через reply в админ-группе).
+    """
+
+    __tablename__ = "dialog_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_tg_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    direction: Mapped[DialogDirection] = mapped_column(
+        Enum(DialogDirection, name="dialog_direction", values_callable=lambda e: [m.value for m in e]),
+    )
+    content_type: Mapped[str] = mapped_column(String(16))  # text|photo|voice|video|document|contact|other
+    text: Mapped[str | None] = mapped_column(Text)
+    file_id: Mapped[str | None] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Broadcast(Base):
     __tablename__ = "broadcasts"
 
