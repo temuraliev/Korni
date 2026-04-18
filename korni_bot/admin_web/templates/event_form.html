@@ -1,6 +1,64 @@
 {% extends "base.html" %}
 {% set active = "events" %}
 {% block content %}
+<style>
+.dropzone {
+    position: relative;
+    border: 2px dashed #d6cfc0;
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    transition: background .15s, border-color .15s;
+    background: #fff;
+}
+.dropzone:hover, .dropzone.active {
+    background: #faf7f0;
+    border-color: var(--accent);
+    color: var(--ink);
+}
+.dropzone input[type=file] { display: none; }
+.dz-hint { pointer-events: none; font-size: 13px; line-height: 1.4; }
+.dz-hint strong { color: var(--ink); }
+.dz-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    justify-content: center;
+}
+.dz-thumb {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e0dbd0;
+    background: #fff;
+}
+.dz-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dz-rm {
+    position: absolute; top: 2px; right: 2px;
+    width: 22px; height: 22px;
+    padding: 0; border: 0; border-radius: 50%;
+    background: rgba(0,0,0,0.65); color: #fff;
+    cursor: pointer; font-size: 16px; line-height: 18px;
+}
+.dz-rm:hover { background: var(--danger); }
+.existing-photos {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+}
+.existing-photos .ex {
+    position: relative;
+    padding: 6px 8px;
+    background: #faf8f3;
+    border: 1px solid #e0dbd0;
+    border-radius: 6px;
+    font-size: 12px;
+}
+</style>
+
 <h1>{% if event %}Редактировать мероприятие{% else %}Новое мероприятие{% endif %}</h1>
 
 <div class="card">
@@ -43,50 +101,65 @@
         </div>
     </div>
 
-    <label>Обложка (главное фото, одно)</label>
-    <input type="file" name="photo" accept="image/*">
+    <label>Обложка (главное фото)</label>
+    <div class="dropzone">
+        <div class="dz-hint">
+            <strong>Перетащите фото сюда</strong> или нажмите, чтобы выбрать<br>
+            <span class="muted">одно фото, jpg/png</span>
+        </div>
+        <input type="file" name="photo" accept="image/*">
+        <div class="dz-preview"></div>
+    </div>
     {% if event and event.photo_file_id %}
     <div class="muted" style="margin-top:6px">
-        Обложка уже загружена (file_id: <code>{{ event.photo_file_id[:24] }}…</code>)
+        Обложка уже загружена (<code>{{ event.photo_file_id[:24] }}…</code>)
         <label style="display:inline"><input type="checkbox" name="keep_photo" checked> оставить</label>
     </div>
     {% endif %}
 
-    <label style="margin-top:16px">Дополнительные фото мероприятия (можно выбрать несколько)</label>
-    <input type="file" name="event_photos" accept="image/*" multiple>
+    <label style="margin-top:16px">Дополнительные фото мероприятия</label>
+    <div class="dropzone">
+        <div class="dz-hint">
+            <strong>Перетащите фото сюда</strong> или нажмите, чтобы выбрать<br>
+            <span class="muted">можно несколько, до 10 штук на мероприятие</span>
+        </div>
+        <input type="file" name="event_photos" accept="image/*" multiple>
+        <div class="dz-preview"></div>
+    </div>
     {% if event_photos %}
-    <div class="muted" style="margin-top:6px">
-        Уже загружено: {{ event_photos|length }} шт.
-        <ul style="margin:6px 0 0 0; padding-left:20px">
+    <div class="existing-photos">
         {% for p in event_photos %}
-            <li>
-                <code>{{ p.file_id[:24] }}…</code>
-                <button type="submit" class="btn secondary"
-                        formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
-                        formnovalidate
-                        style="padding:2px 8px; font-size:12px; margin-left:8px">удалить</button>
-            </li>
+        <div class="ex">
+            <code>{{ p.file_id[:16] }}…</code>
+            <button type="submit" class="btn secondary small"
+                    formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
+                    formnovalidate
+                    style="margin-left:6px">удалить</button>
+        </div>
         {% endfor %}
-        </ul>
     </div>
     {% endif %}
 
-    <label style="margin-top:16px">Фото ведущего / преподавателя (можно несколько)</label>
-    <input type="file" name="teacher_photos" accept="image/*" multiple>
+    <label style="margin-top:16px">Фото ведущего / преподавателя</label>
+    <div class="dropzone">
+        <div class="dz-hint">
+            <strong>Перетащите фото сюда</strong> или нажмите, чтобы выбрать<br>
+            <span class="muted">можно несколько</span>
+        </div>
+        <input type="file" name="teacher_photos" accept="image/*" multiple>
+        <div class="dz-preview"></div>
+    </div>
     {% if teacher_photos %}
-    <div class="muted" style="margin-top:6px">
-        Уже загружено: {{ teacher_photos|length }} шт.
-        <ul style="margin:6px 0 0 0; padding-left:20px">
+    <div class="existing-photos">
         {% for p in teacher_photos %}
-            <li>
-                <code>{{ p.file_id[:24] }}…</code>
-                <button type="submit" class="btn secondary"
-                        formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
-                        formnovalidate
-                        style="padding:2px 8px; font-size:12px; margin-left:8px">удалить</button>
-            </li>
+        <div class="ex">
+            <code>{{ p.file_id[:16] }}…</code>
+            <button type="submit" class="btn secondary small"
+                    formaction="/admin/events/{{ event.id }}/photos/{{ p.id }}/delete"
+                    formnovalidate
+                    style="margin-left:6px">удалить</button>
+        </div>
         {% endfor %}
-        </ul>
     </div>
     {% endif %}
 
@@ -101,4 +174,91 @@
     </div>
 </form>
 </div>
+
+<script>
+(function () {
+    function setupDropzone(zone) {
+        const input = zone.querySelector('input[type=file]');
+        const preview = zone.querySelector('.dz-preview');
+        if (!input || !preview) return;
+
+        zone.addEventListener('click', (e) => {
+            if (e.target.closest('.dz-rm')) return;
+            input.click();
+        });
+
+        ['dragenter', 'dragover'].forEach(ev => {
+            zone.addEventListener(ev, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.add('active');
+            });
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+            zone.addEventListener(ev, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.remove('active');
+            });
+        });
+
+        zone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (files && files.length) addFiles(files);
+        });
+
+        input.addEventListener('change', renderPreview);
+
+        function addFiles(newFiles) {
+            const dt = new DataTransfer();
+            if (input.multiple && input.files) {
+                for (const f of input.files) dt.items.add(f);
+            }
+            for (const f of newFiles) {
+                if (f.type && f.type.startsWith('image/')) dt.items.add(f);
+            }
+            // Для single-file input оставляем только последний.
+            if (!input.multiple && dt.items.length > 1) {
+                const last = dt.files[dt.files.length - 1];
+                const single = new DataTransfer();
+                single.items.add(last);
+                input.files = single.files;
+            } else {
+                input.files = dt.files;
+            }
+            renderPreview();
+        }
+
+        function renderPreview() {
+            preview.innerHTML = '';
+            if (!input.files || !input.files.length) return;
+            Array.from(input.files).forEach((file, i) => {
+                const thumb = document.createElement('div');
+                thumb.className = 'dz-thumb';
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.onload = () => URL.revokeObjectURL(img.src);
+                thumb.appendChild(img);
+
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'dz-rm';
+                rm.textContent = '×';
+                rm.title = 'Убрать';
+                rm.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const dt = new DataTransfer();
+                    Array.from(input.files).forEach((f, j) => { if (j !== i) dt.items.add(f); });
+                    input.files = dt.files;
+                    renderPreview();
+                });
+                thumb.appendChild(rm);
+                preview.appendChild(thumb);
+            });
+        }
+    }
+
+    document.querySelectorAll('.dropzone').forEach(setupDropzone);
+})();
+</script>
 {% endblock %}
