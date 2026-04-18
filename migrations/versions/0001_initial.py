@@ -54,29 +54,35 @@ def upgrade() -> None:
     )
     op.create_index("ix_events_category_id", "events", ["category_id"])
 
-    booking_status = sa.Enum("pending", "confirmed", "cancelled", name="booking_status")
-    booking_status.create(op.get_bind(), checkfirst=True)
+    sa.Enum("pending", "confirmed", "cancelled", name="booking_status").create(
+        op.get_bind(), checkfirst=True
+    )
+    booking_status_col = sa.Enum(
+        "pending", "confirmed", "cancelled", name="booking_status", create_type=False
+    )
     op.create_table(
         "bookings",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("event_id", sa.Integer(), sa.ForeignKey("events.id", ondelete="CASCADE"), nullable=False),
         sa.Column("phone", sa.String(32), nullable=False),
-        sa.Column("status", booking_status, nullable=False, server_default="pending"),
+        sa.Column("status", booking_status_col, nullable=False, server_default="pending"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
     )
     op.create_index("ix_bookings_user_id", "bookings", ["user_id"])
     op.create_index("ix_bookings_event_id", "bookings", ["event_id"])
 
-    callback_status = sa.Enum("pending", "done", name="callback_status")
-    callback_status.create(op.get_bind(), checkfirst=True)
+    sa.Enum("pending", "done", name="callback_status").create(op.get_bind(), checkfirst=True)
+    callback_status_col = sa.Enum(
+        "pending", "done", name="callback_status", create_type=False
+    )
     op.create_table(
         "callbacks",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("event_id", sa.Integer(), sa.ForeignKey("events.id", ondelete="SET NULL")),
         sa.Column("phone", sa.String(32), nullable=False),
-        sa.Column("status", callback_status, nullable=False, server_default="pending"),
+        sa.Column("status", callback_status_col, nullable=False, server_default="pending"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
     )
     op.create_index("ix_callbacks_user_id", "callbacks", ["user_id"])
