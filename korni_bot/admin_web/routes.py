@@ -1,6 +1,9 @@
 from datetime import datetime
 
+import logging
+
 from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BufferedInputFile
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -353,6 +356,9 @@ async def broadcast_send(
 # ─── helpers ──────────────────────────────────────────────────────────────
 
 
+_upload_logger = logging.getLogger(__name__)
+
+
 async def _upload_photo(bot: Bot, photo: UploadFile | None, label: str) -> str | None:
     if photo is None or not photo.filename:
         return None
@@ -360,11 +366,20 @@ async def _upload_photo(bot: Bot, photo: UploadFile | None, label: str) -> str |
     if not data:
         return None
     settings = get_settings()
-    msg = await bot.send_photo(
-        settings.admin_group_id,
-        BufferedInputFile(data, filename=photo.filename),
-        caption=f"📤 Upload: {label}",
-    )
+    try:
+        msg = await bot.send_photo(
+            settings.admin_group_id,
+            BufferedInputFile(data, filename=photo.filename),
+            caption=f"📤 Upload: {label}",
+        )
+    except TelegramAPIError as e:
+        _upload_logger.error(
+            "Failed to upload photo to admin group %s: %s. "
+            "Мероприятие сохранится без фото. Проверь ADMIN_GROUP_ID и что бот в группе админом.",
+            settings.admin_group_id,
+            e,
+        )
+        return None
     return msg.photo[-1].file_id
 
 
