@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     database_url: str = Field(alias="DATABASE_URL")
 
+    instagram_url: str = Field(default="https://instagram.com/korni", alias="INSTAGRAM_URL")
+    restaurant_phone: str = Field(default="+7 000 000 00 00", alias="RESTAURANT_PHONE")
+    discount_percent: int = Field(default=20, alias="DISCOUNT_PERCENT")
+
     @field_validator("admin_ids", mode="before")
     @classmethod
     def _parse_admin_ids(cls, v: object) -> list[int]:

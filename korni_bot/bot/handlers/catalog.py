@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
@@ -9,6 +11,7 @@ from korni_bot.bot import texts
 from korni_bot.bot.callbacks import BackCB, CategoryCB, EventActionCB, EventCB
 from korni_bot.bot.handlers.admin_chat import deliver_to_admins
 from korni_bot.bot.states import BookingFlow, CallbackFlow, QuestionFlow
+from korni_bot.config import get_settings
 from korni_bot.db.models import (
     Booking,
     BookingStatus,
@@ -174,10 +177,34 @@ async def on_book(cb: CallbackQuery, callback_data: EventActionCB, session: Asyn
     await cb.answer()
 
 
-@router.callback_query(EventActionCB.filter(F.action == "callback"))
-async def on_callback_request(
-    cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext
-) -> None:
+@router.callback_query(EventActionCB.filter(F.action == "question"))
+async def on_question(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
+    assert cb.message is not None
+    # event_id == 0 — пришли из меню категорий («У меня есть другой вопрос!»), там подменю не нужно,
+    # сразу просим текст. С карточки мероприятия (event_id>0) показываем выбор: написать / позвонить.
+    if callback_data.event_id == 0:
+        await state.set_state(QuestionFlow.waiting_text)
+        await state.update_data(event_id=None)
+        await cb.message.answer(texts.ASK_QUESTION_PROMPT, reply_markup=kb.remove_kb())
+    else:
+        await cb.message.answer(
+            texts.QUESTION_MENU_PROMPT,
+            reply_markup=kb.question_submenu_kb(callback_data.event_id),
+        )
+    await cb.answer()
+
+
+@router.callback_query(EventActionCB.filter(F.action == "qwrite"))
+async def on_qwrite(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
+    await state.set_state(QuestionFlow.waiting_text)
+    await state.update_data(event_id=callback_data.event_id or None)
+    assert cb.message is not None
+    await cb.message.answer(texts.ASK_QUESTION_PROMPT, reply_markup=kb.remove_kb())
+    await cb.answer()
+
+
+@router.callback_query(EventActionCB.filter(F.action == "qcall"))
+async def on_qcall(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
     await state.set_state(CallbackFlow.waiting_contact)
     await state.update_data(event_id=callback_data.event_id or None)
     assert cb.message is not None
@@ -185,13 +212,63 @@ async def on_callback_request(
     await cb.answer()
 
 
-@router.callback_query(EventActionCB.filter(F.action == "question"))
-async def on_question(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
-    await state.set_state(QuestionFlow.waiting_text)
-    await state.update_data(event_id=callback_data.event_id or None)
+@router.callback_query(EventActionCB.filter(F.action == "qself"))
+async def on_qself(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+    settings = get_settings()
     assert cb.message is not None
-    await cb.message.answer(texts.ASK_QUESTION_PROMPT, reply_markup=kb.remove_kb())
+    await cb.message.answer(
+        texts.SELF_CALL_TEXT.format(phone=settings.restaurant_phone),
+        reply_markup=kb.question_submenu_kb(callback_data.event_id),
+    )
     await cb.answer()
+
+
+# ─── Скидка через Instagram ──────────────────────────────────────────────
+
+
+@router.callback_query(EventActionCB.filter(F.action == "discount"))
+async def on_discount(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+    settings = get_settings()
+    assert cb.message is not None
+    await cb.message.answer(
+        texts.DISCOUNT_OFFER.format(percent=settings.discount_percent),
+        reply_markup=kb.discount_kb(callback_data.event_id, settings.instagram_url),
+    )
+    await cb.answer()
+
+
+@router.callback_query(EventActionCB.filter(F.action == "discount_check"))
+async def on_discount_check(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+    settings = get_settings()
+    assert cb.message is not None
+    await cb.answer()
+    # Попробуем отредактировать то же сообщение («Проверяем…» → «Скидка доступна!»),
+    # если сообщение текстовое. Если нет — шлём новое.
+    try:
+        await cb.message.edit_text(texts.DISCOUNT_CHECKING)
+        edit_ok = True
+    except Exception:
+        await cb.message.answer(texts.DISCOUNT_CHECKING)
+        edit_ok = False
+
+    await asyncio.sleep(3)
+
+    success_text = texts.DISCOUNT_SUCCESS.format(percent=settings.discount_percent)
+    success_kb = kb.discount_success_kb(callback_data.event_id)
+    if edit_ok:
+        try:
+            await cb.message.edit_text(success_text, reply_markup=success_kb)
+            return
+        except Exception:
+            pass
+    await cb.message.answer(success_text, reply_markup=success_kb)
+
+
+@router.callback_query(EventActionCB.filter(F.action == "back_to_event"))
+async def on_back_to_event(
+    cb: CallbackQuery, callback_data: EventActionCB, session: AsyncSession
+) -> None:
+    await on_event(cb, EventCB(id=callback_data.event_id), session)
 
 
 # ─── Приём контакта ───────────────────────────────────────────────────────

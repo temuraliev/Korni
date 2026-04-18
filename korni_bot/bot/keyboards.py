@@ -48,8 +48,35 @@ def event_actions_kb(event_id: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text="Все понятно, хочу забронировать!", callback_data=EventActionCB(event_id=event_id, action="book"))
     b.button(text="Подробнее про преподавателя", callback_data=EventActionCB(event_id=event_id, action="teacher"))
-    b.button(text="Есть вопрос, хочу написать", callback_data=EventActionCB(event_id=event_id, action="question"))
-    b.button(text="Позвоните мне, есть вопрос", callback_data=EventActionCB(event_id=event_id, action="callback"))
+    b.button(text="У меня есть вопрос", callback_data=EventActionCB(event_id=event_id, action="question"))
+    b.button(text="🎁 Я хочу получить скидку", callback_data=EventActionCB(event_id=event_id, action="discount"))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def question_submenu_kb(event_id: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="✍️ Напишите мне", callback_data=EventActionCB(event_id=event_id, action="qwrite"))
+    b.button(text="📞 Позвоните мне", callback_data=EventActionCB(event_id=event_id, action="qcall"))
+    b.button(text="☎️ Я сам позвоню", callback_data=EventActionCB(event_id=event_id, action="qself"))
+    b.button(text="◀️ Назад", callback_data=EventActionCB(event_id=event_id, action="back_to_event"))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def discount_kb(event_id: int, instagram_url: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="📷 Открыть Instagram", url=instagram_url)
+    b.button(text="✅ Я подписался!", callback_data=EventActionCB(event_id=event_id, action="discount_check"))
+    b.button(text="◀️ Назад", callback_data=EventActionCB(event_id=event_id, action="back_to_event"))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def discount_success_kb(event_id: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="🎟 Забронировать", callback_data=EventActionCB(event_id=event_id, action="book"))
+    b.button(text="◀️ Назад", callback_data=EventActionCB(event_id=event_id, action="back_to_event"))
     b.adjust(1)
     return b.as_markup()
 
