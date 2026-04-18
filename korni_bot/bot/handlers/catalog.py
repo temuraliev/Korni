@@ -89,7 +89,7 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
     photo_ids.extend(extra)
     photo_ids = photo_ids[:10]
 
-    action_kb = kb.event_actions_kb(event.id)
+    action_kb = kb.event_actions_kb(event.id, event.category_id)
     if len(photo_ids) >= 2:
         # У media-group caption только в первом элементе и без inline-кнопок.
         # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
