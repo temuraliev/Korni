@@ -1,5 +1,3 @@
-import asyncio
-
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
@@ -10,7 +8,7 @@ from korni_bot.bot import keyboards as kb
 from korni_bot.bot import texts
 from korni_bot.bot.callbacks import BackCB, CategoryCB, EventActionCB, EventCB
 from korni_bot.bot.handlers.admin_chat import deliver_to_admins
-from korni_bot.bot.states import BookingFlow, CallbackFlow, QuestionFlow
+from korni_bot.bot.states import BookingFlow, CallbackFlow, DiscountFlow, QuestionFlow
 from korni_bot.config import get_settings
 from korni_bot.db.models import (
     Booking,
@@ -238,36 +236,41 @@ async def on_discount(cb: CallbackQuery, callback_data: EventActionCB) -> None:
 
 @router.callback_query(EventActionCB.filter(F.action == "discount_check"))
 async def on_discount_check(
-    cb: CallbackQuery, callback_data: EventActionCB, session: AsyncSession
+    cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext
 ) -> None:
-    settings = get_settings()
     assert cb.message is not None
     await cb.answer()
-    # Попробуем отредактировать то же сообщение («Проверяем…» → «Скидка доступна!»),
-    # если сообщение текстовое. Если нет — шлём новое.
-    try:
-        await cb.message.edit_text(texts.DISCOUNT_CHECKING)
-        edit_ok = True
-    except Exception:
-        await cb.message.answer(texts.DISCOUNT_CHECKING)
-        edit_ok = False
+    # Встаём в состояние ожидания скриншота, запоминаем event_id.
+    await state.set_state(DiscountFlow.waiting_screenshot)
+    await state.update_data(event_id=callback_data.event_id or None)
+    await cb.message.answer(texts.DISCOUNT_ASK_SCREENSHOT)
 
-    await asyncio.sleep(3)
 
-    success_text = texts.DISCOUNT_SUCCESS.format(percent=settings.discount_percent)
-    success_kb = kb.discount_success_kb(callback_data.event_id)
-    if edit_ok:
-        try:
-            await cb.message.edit_text(success_text, reply_markup=success_kb)
-        except Exception:
-            await cb.message.answer(success_text, reply_markup=success_kb)
-    else:
-        await cb.message.answer(success_text, reply_markup=success_kb)
+@router.message(DiscountFlow.waiting_screenshot, F.photo)
+async def on_discount_screenshot(
+    message: Message, session: AsyncSession, state: FSMContext
+) -> None:
+    settings = get_settings()
+    data = await state.get_data()
+    event_id = data.get("event_id")
+    await state.clear()
 
-    # Уведомляем админов: кто-то «подтвердил» подписку и получил код на скидку.
-    event = await session.get(Event, callback_data.event_id) if callback_data.event_id else None
-    user = await _upsert_user_from_cb(session, cb)
-    await _notify_admins_discount(cb, event, user, settings.discount_percent)
+    event = await session.get(Event, event_id) if event_id else None
+    user = await _get_or_create_user(session, message)
+
+    # Шлём скриншот в админ-группу с шапкой.
+    await _notify_admins_discount_screenshot(message, event, user, settings.discount_percent)
+
+    await message.answer(
+        texts.DISCOUNT_SUCCESS.format(percent=settings.discount_percent),
+        reply_markup=kb.discount_success_kb(event_id or 0),
+    )
+
+
+@router.message(DiscountFlow.waiting_screenshot)
+async def on_discount_wrong_type(message: Message) -> None:
+    # Всё, что не фото, пока ждём скриншот — показываем напоминание, state не сбрасываем.
+    await message.answer(texts.DISCOUNT_SCREENSHOT_WRONG_TYPE)
 
 
 @router.callback_query(EventActionCB.filter(F.action == "back_to_event"))
@@ -373,40 +376,25 @@ async def _notify_admins_booking(message: Message, event: Event, user: User, pho
     await bot.send_message(settings.admin_group_id, text)
 
 
-async def _upsert_user_from_cb(session: AsyncSession, cb: CallbackQuery) -> User:
-    tg_user = cb.from_user
-    assert tg_user is not None
-    user = await session.scalar(select(User).where(User.tg_id == tg_user.id))
-    if user is None:
-        user = User(
-            tg_id=tg_user.id,
-            username=tg_user.username,
-            first_name=tg_user.first_name,
-            last_name=tg_user.last_name,
-        )
-        session.add(user)
-        await session.commit()
-    return user
-
-
-async def _notify_admins_discount(
-    cb: CallbackQuery, event: Event | None, user: User, percent: int
+async def _notify_admins_discount_screenshot(
+    message: Message, event: Event | None, user: User, percent: int
 ) -> None:
-    bot = cb.bot
-    assert bot is not None
+    bot = message.bot
+    assert bot is not None and message.photo
     settings = get_settings()
-    text = (
-        f"🎁 <b>Заявка на скидку {percent}%</b>\n"
+    caption = (
+        f"🎁 <b>Заявка на скидку {percent}%</b> — со скриншотом подписки\n"
         f"Мероприятие: {event.title if event else '—'}\n"
-        f"Пользователь: {_user_display(user)}\n"
-        f"<i>Юзер нажал «Я подписался» — подписку на Instagram проверьте вручную.</i>"
+        f"Пользователь: {_user_display(user)}"
     )
+    photo_id = message.photo[-1].file_id
     try:
-        await bot.send_message(settings.admin_group_id, text)
+        await bot.send_photo(settings.admin_group_id, photo_id, caption=caption)
     except Exception:
-        # не роняем flow скидки из-за недоступности админ-группы
         import logging
-        logging.getLogger(__name__).exception("Failed to notify admins about discount claim")
+        logging.getLogger(__name__).exception(
+            "Failed to send discount screenshot to admin group %s", settings.admin_group_id
+        )
 
 
 async def _notify_admins_callback(message: Message, event: Event | None, user: User, phone: str) -> None:

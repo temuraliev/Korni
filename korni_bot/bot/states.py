@@ -11,3 +11,7 @@ class CallbackFlow(StatesGroup):
 
 class QuestionFlow(StatesGroup):
     waiting_text = State()
+
+
+class DiscountFlow(StatesGroup):
+    waiting_screenshot = State()
