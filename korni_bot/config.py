@@ -42,13 +42,23 @@ class Settings(BaseSettings):
             return "postgresql+asyncpg://" + v.removeprefix("postgresql://")
         return v
 
+    @field_validator("webhook_base_url", mode="before")
+    @classmethod
+    def _normalize_webhook_url(cls, v: str) -> str:
+        v = v.strip().rstrip("/")
+        if not v:
+            return v
+        if not v.startswith(("http://", "https://")):
+            v = "https://" + v
+        return v
+
     @property
     def webhook_path(self) -> str:
         return f"/webhook/{self.webhook_secret}"
 
     @property
     def webhook_url(self) -> str:
-        return self.webhook_base_url.rstrip("/") + self.webhook_path
+        return self.webhook_base_url + self.webhook_path
 
 
 @lru_cache(maxsize=1)
