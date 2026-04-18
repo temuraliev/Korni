@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set active = "bookings" %}
+{% block content %}
+<h1>Брони</h1>
+<div class="card">
+<table>
+    <thead>
+    <tr><th>Когда</th><th>Мероприятие</th><th>Пользователь</th><th>Телефон</th><th>Статус</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for booking, user, event in rows %}
+    <tr>
+        <td class="muted">{{ booking.created_at.strftime('%d.%m %H:%M') }}</td>
+        <td>{{ event.title }}</td>
+        <td>
+            {{ (user.first_name or '') }} {{ (user.last_name or '') }}
+            {% if user.username %}<br><span class="muted">@{{ user.username }}</span>{% endif %}
+        </td>
+        <td><code>{{ booking.phone }}</code></td>
+        <td>
+            {% if booking.status.value == 'pending' %}<span class="badge warn">ждёт</span>
+            {% elif booking.status.value == 'confirmed' %}<span class="badge ok">подтв.</span>
+            {% else %}<span class="badge err">отм.</span>{% endif %}
+        </td>
+        <td>
+            {% if booking.status.value != 'confirmed' %}
+            <form method="post" action="/admin/bookings/{{ booking.id }}/status" class="inline-form">
+                <input type="hidden" name="new_status" value="confirmed">
+                <button class="btn small" type="submit">✓</button>
+            </form>
+            {% endif %}
+            {% if booking.status.value != 'cancelled' %}
+            <form method="post" action="/admin/bookings/{{ booking.id }}/status" class="inline-form">
+                <input type="hidden" name="new_status" value="cancelled">
+                <button class="btn small danger" type="submit">✕</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Броней пока нет.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

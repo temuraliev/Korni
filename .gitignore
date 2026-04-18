@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+.env.local
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Telegram-экспорты, случайно оказавшиеся в рабочей папке
+photo_*.jpg
+photo_*.png
+IMG_*.MP4
+IMG_*.mp4
+
+# Claude Code локальные настройки
+.claude/

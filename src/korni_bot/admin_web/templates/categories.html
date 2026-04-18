@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set active = "categories" %}
+{% block content %}
+<h1>Категории</h1>
+
+<div class="card">
+    <h3>Добавить новую</h3>
+    <form method="post" action="/admin/categories">
+        <div class="row">
+            <div>
+                <label>Название</label>
+                <input type="text" name="title" required placeholder="например: Детские">
+            </div>
+            <div>
+                <label>Эмодзи (необяз.)</label>
+                <input type="text" name="emoji" maxlength="4" placeholder="🎨">
+            </div>
+        </div>
+        <label>Порядок сортировки</label>
+        <input type="number" name="sort_order" value="0" style="width:120px">
+        <div style="margin-top:16px"><button class="btn" type="submit">Добавить</button></div>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Список</h3>
+    <table>
+        <thead><tr><th>ID</th><th>Название</th><th>Эмодзи</th><th>Порядок</th><th>Активна</th><th></th></tr></thead>
+        <tbody>
+        {% for c in categories %}
+        <tr>
+            <form method="post" action="/admin/categories/{{ c.id }}/update" class="inline-form">
+            <td>{{ c.id }}</td>
+            <td><input type="text" name="title" value="{{ c.title }}"></td>
+            <td><input type="text" name="emoji" value="{{ c.emoji or '' }}" maxlength="4" style="width:70px"></td>
+            <td><input type="number" name="sort_order" value="{{ c.sort_order }}" style="width:80px"></td>
+            <td><input type="checkbox" name="is_active" {% if c.is_active %}checked{% endif %}></td>
+            <td>
+                <button class="btn small" type="submit">Сохранить</button>
+            </form>
+            <form method="post" action="/admin/categories/{{ c.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('Удалить категорию и все её мероприятия?')">
+                <button class="btn small danger" type="submit">Удалить</button>
+            </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted">Категорий пока нет.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

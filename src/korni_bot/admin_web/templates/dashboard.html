@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block content %}
+<h1>Обзор</h1>
+<div class="stats">
+    <div class="stat"><div class="n">{{ stats.users }}</div><div class="l">пользователей</div></div>
+    <div class="stat"><div class="n">{{ stats.events }}</div><div class="l">активных мероприятий</div></div>
+    <div class="stat"><div class="n">{{ stats.bookings_pending }}</div><div class="l">броней ждут</div></div>
+    <div class="stat"><div class="n">{{ stats.callbacks_pending }}</div><div class="l">звонков ждут</div></div>
+</div>
+<div class="card" style="margin-top:20px">
+    <h2>Быстрые действия</h2>
+    <p>
+        <a class="btn" href="/admin/events/new">➕ Добавить мероприятие</a>
+        <a class="btn secondary" href="/admin/broadcast">📣 Сделать рассылку</a>
+    </p>
+</div>
+{% endblock %}

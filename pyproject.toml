@@ -1,0 +1,35 @@
+[project]
+name = "korni_bot"
+version = "0.1.0"
+description = "Telegram bot «Близкий круг» for restaurant «Корни» — event booking, admin chat bridge, broadcasts"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.13,<4",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.19",
+    "itsdangerous>=2.2",
+    "passlib[bcrypt]>=1.7",
+    "aiosqlite>=0.20",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/korni_bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

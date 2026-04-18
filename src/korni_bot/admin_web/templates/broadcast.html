@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% set active = "broadcast" %}
+{% block content %}
+<h1>Рассылка</h1>
+
+{% if result %}
+<div class="card" style="background:#f3f9f0">
+    ✅ Рассылка завершена. Доставлено: <b>{{ result.sent }}</b>, ошибок: <b>{{ result.failed }}</b>.
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="post" action="/admin/broadcast" enctype="multipart/form-data">
+        <label>Текст сообщения *</label>
+        <textarea name="text" required placeholder="Что отправить всем пользователям бота…"></textarea>
+
+        <label>Фото (необяз.)</label>
+        <input type="file" name="photo" accept="image/*">
+
+        <div style="margin-top:16px">
+            <button class="btn" type="submit"
+                    onclick="return confirm('Отправить сообщение ВСЕМ пользователям?')">
+                📣 Отправить всем
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h3>История</h3>
+    <table>
+        <thead><tr><th>Когда</th><th>Текст</th><th>С фото</th><th>Доставлено</th><th>Ошибок</th></tr></thead>
+        <tbody>
+        {% for b in history %}
+        <tr>
+            <td class="muted">{{ b.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>{{ b.text[:120] }}{% if b.text|length > 120 %}…{% endif %}</td>
+            <td>{{ '✓' if b.photo_file_id else '' }}</td>
+            <td>{{ b.sent_count }}</td>
+            <td>{{ b.failed_count }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">Рассылок ещё не было.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

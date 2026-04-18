@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% set active = "callbacks" %}
+{% block content %}
+<h1>Запросы обратного звонка</h1>
+<div class="card">
+<table>
+    <thead>
+    <tr><th>Когда</th><th>Мероприятие</th><th>Пользователь</th><th>Телефон</th><th>Статус</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for cb, user, event in rows %}
+    <tr>
+        <td class="muted">{{ cb.created_at.strftime('%d.%m %H:%M') }}</td>
+        <td>{{ event.title if event else '—' }}</td>
+        <td>
+            {{ (user.first_name or '') }} {{ (user.last_name or '') }}
+            {% if user.username %}<br><span class="muted">@{{ user.username }}</span>{% endif %}
+        </td>
+        <td><code>{{ cb.phone }}</code></td>
+        <td>
+            {% if cb.status.value == 'pending' %}<span class="badge warn">ждёт</span>
+            {% else %}<span class="badge ok">выполнен</span>{% endif %}
+        </td>
+        <td>
+            {% if cb.status.value == 'pending' %}
+            <form method="post" action="/admin/callbacks/{{ cb.id }}/done" class="inline-form">
+                <button class="btn small" type="submit">Отметить выполненным</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Запросов пока нет.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

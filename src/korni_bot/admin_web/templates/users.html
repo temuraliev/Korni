@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% set active = "users" %}
+{% block content %}
+<h1>Пользователи ({{ users|length }})</h1>
+<div class="card">
+<table>
+    <thead><tr><th>Когда зашёл</th><th>TG ID</th><th>Имя</th><th>@username</th><th>Телефон</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+    <tr>
+        <td class="muted">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+        <td><code>{{ u.tg_id }}</code></td>
+        <td>{{ (u.first_name or '') }} {{ (u.last_name or '') }}</td>
+        <td>{% if u.username %}@{{ u.username }}{% endif %}</td>
+        <td>{{ u.phone or '' }}</td>
+        <td>
+            {% if u.is_blocked %}<span class="badge err">заблок. бота</span>
+            {% else %}<span class="badge ok">активен</span>{% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Нет пользователей.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

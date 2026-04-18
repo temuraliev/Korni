@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Админка «Корни»{% endblock %}</title>
+    <style>
+        :root { --bg:#f5f4ef; --ink:#2b2218; --accent:#8b6f4e; --muted:#8a7f73; --danger:#b33a3a; }
+        * { box-sizing: border-box; }
+        body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background:var(--bg); color:var(--ink); }
+        a { color:var(--accent); }
+        header { background:#fff; border-bottom:1px solid #e0dbd0; padding:12px 24px;
+                 display:flex; align-items:center; justify-content:space-between; }
+        header nav a { margin-right:18px; text-decoration:none; font-weight:500; }
+        header nav a.active { color:var(--ink); border-bottom:2px solid var(--accent); }
+        .brand { font-weight:700; font-size:18px; }
+        main { max-width:1100px; margin:24px auto; padding:0 24px; }
+        .card { background:#fff; border:1px solid #e0dbd0; border-radius:8px; padding:20px; margin-bottom:20px; }
+        h1 { margin-top:0; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:10px 12px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+        th { background:#faf8f3; font-weight:600; }
+        input[type=text], input[type=password], input[type=number], input[type=datetime-local], textarea, select {
+            width:100%; padding:8px 10px; border:1px solid #d6cfc0; border-radius:6px; font-size:14px;
+            font-family: inherit; background:#fff;
+        }
+        textarea { min-height:100px; resize:vertical; }
+        label { display:block; margin-top:12px; font-weight:500; font-size:14px; }
+        .row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .btn { display:inline-block; padding:8px 16px; border:0; border-radius:6px; cursor:pointer;
+               background:var(--accent); color:#fff; font-size:14px; text-decoration:none; }
+        .btn.secondary { background:#ddd4c4; color:var(--ink); }
+        .btn.danger { background:var(--danger); }
+        .btn.small { padding:4px 10px; font-size:12px; }
+        .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+        .stat { text-align:center; padding:20px; background:#fff; border-radius:8px; border:1px solid #e0dbd0; }
+        .stat .n { font-size:32px; font-weight:700; color:var(--accent); }
+        .stat .l { color:var(--muted); font-size:13px; margin-top:4px; }
+        .flex { display:flex; gap:8px; align-items:center; }
+        .muted { color:var(--muted); font-size:12px; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; background:#eee; }
+        .badge.ok { background:#d4eed4; color:#2a6b2a; }
+        .badge.warn { background:#fde9c0; color:#8a5a00; }
+        .badge.err { background:#f6d2d2; color:#7b1a1a; }
+        .inline-form { display:inline; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="brand">🌱 Корни · Админка</div>
+    <nav>
+        <a href="/admin/" class="{% if active=='home' %}active{% endif %}">Обзор</a>
+        <a href="/admin/categories" class="{% if active=='categories' %}active{% endif %}">Категории</a>
+        <a href="/admin/events" class="{% if active=='events' %}active{% endif %}">Мероприятия</a>
+        <a href="/admin/bookings" class="{% if active=='bookings' %}active{% endif %}">Брони</a>
+        <a href="/admin/callbacks" class="{% if active=='callbacks' %}active{% endif %}">Звонки</a>
+        <a href="/admin/users" class="{% if active=='users' %}active{% endif %}">Юзеры</a>
+        <a href="/admin/broadcast" class="{% if active=='broadcast' %}active{% endif %}">Рассылка</a>
+    </nav>
+    <form method="post" action="/admin/logout" class="inline-form">
+        <button class="btn secondary small" type="submit">Выйти</button>
+    </form>
+</header>
+<main>
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>
