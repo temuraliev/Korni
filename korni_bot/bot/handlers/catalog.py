@@ -1,8 +1,12 @@
+import logging
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from korni_bot.bot import keyboards as kb
 from korni_bot.bot import texts
@@ -64,42 +68,53 @@ async def on_back_to_category(cb: CallbackQuery, callback_data: BackCB, session:
 
 @router.callback_query(EventCB.filter())
 async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSession) -> None:
+    logger.info("on_event called: event_id=%s", callback_data.id)
     await cb.answer()
     assert cb.message is not None
-    event = await session.get(Event, callback_data.id)
-    if event is None or not event.is_active:
-        await cb.message.answer("Мероприятие недоступно.")
-        return
-    photo_ids: list[str] = []
-    if event.photo_file_id:
-        photo_ids.append(event.photo_file_id)
-    extra = await session.scalars(
-        select(EventPhoto.file_id)
-        .where(EventPhoto.event_id == event.id, EventPhoto.kind == EventPhotoKind.event)
-        .order_by(EventPhoto.sort_order, EventPhoto.id)
-    )
-    photo_ids.extend(extra)
-    photo_ids = photo_ids[:10]
+    try:
+        event = await session.get(Event, callback_data.id)
+        if event is None or not event.is_active:
+            await cb.message.answer("Мероприятие недоступно.")
+            return
+        photo_ids: list[str] = []
+        if event.photo_file_id:
+            photo_ids.append(event.photo_file_id)
+        extra = await session.scalars(
+            select(EventPhoto.file_id)
+            .where(EventPhoto.event_id == event.id, EventPhoto.kind == EventPhotoKind.event)
+            .order_by(EventPhoto.sort_order, EventPhoto.id)
+        )
+        photo_ids.extend(extra)
+        photo_ids = photo_ids[:10]
 
-    category = await session.get(Category, event.category_id)
-    simple = "игр" in (category.title or "").lower() if category else False
-    action_kb = kb.event_actions_kb(event.id, event.category_id, simple=simple)
-    if len(photo_ids) >= 2:
-        # У media-group caption только в первом элементе и без inline-кнопок.
-        # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
-        caption = _format_event_caption(event, include_prompt=False)
-        media = [
-            InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
-            for i, fid in enumerate(photo_ids)
-        ]
-        await cb.message.answer_media_group(media)
-        await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
-    elif len(photo_ids) == 1:
-        caption = _format_event_caption(event)
-        await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
-    else:
-        caption = _format_event_caption(event)
-        await cb.message.answer(caption, reply_markup=action_kb)
+        category = await session.get(Category, event.category_id)
+        simple = "игр" in (category.title or "").lower() if category else False
+        action_kb = kb.event_actions_kb(event.id, event.category_id, simple=simple)
+        logger.info(
+            "on_event event=%s photos=%d simple=%s", event.id, len(photo_ids), simple
+        )
+        if len(photo_ids) >= 2:
+            # У media-group caption только в первом элементе и без inline-кнопок.
+            # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
+            caption = _format_event_caption(event, include_prompt=False)
+            media = [
+                InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
+                for i, fid in enumerate(photo_ids)
+            ]
+            await cb.message.answer_media_group(media)
+            await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
+        elif len(photo_ids) == 1:
+            caption = _format_event_caption(event)
+            await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
+        else:
+            caption = _format_event_caption(event)
+            await cb.message.answer(caption, reply_markup=action_kb)
+    except Exception:
+        logger.exception("on_event failed for event_id=%s", callback_data.id)
+        try:
+            await cb.message.answer("⚠️ Не удалось открыть карточку мероприятия.")
+        except Exception:
+            pass
 
 
 def _format_event_caption(event: Event, include_prompt: bool = True) -> str:
