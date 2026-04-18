@@ -4,7 +4,10 @@
   с инфой о юзере → id этой «шапки» сохраняется в message_map.
 - Если админ в группе делает reply на форвард (или на «шапку»), ответ уходит юзеру.
 """
+import logging
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy import select
@@ -15,28 +18,40 @@ from korni_bot.config import get_settings
 from korni_bot.db.models import MessageMap, User
 
 router = Router(name="admin_chat")
+logger = logging.getLogger(__name__)
 
 
 # ─── От юзера в группу ────────────────────────────────────────────────────
 
 
-async def deliver_to_admins(message: Message, session: AsyncSession) -> None:
-    """Форвардит сообщение юзера в админ-группу и сохраняет маппинг message_id → user_tg_id."""
+async def deliver_to_admins(message: Message, session: AsyncSession) -> bool:
+    """Форвардит сообщение юзера в админ-группу и сохраняет маппинг.
+    Возвращает True при успехе, False если не удалось достучаться до группы."""
     settings = get_settings()
     bot = message.bot
     assert bot is not None and message.from_user is not None
 
     header_text = _header_for(message)
-    forwarded = await bot.forward_message(
-        chat_id=settings.admin_group_id,
-        from_chat_id=message.chat.id,
-        message_id=message.message_id,
-    )
-    await bot.send_message(
-        settings.admin_group_id,
-        header_text,
-        reply_to_message_id=forwarded.message_id,
-    )
+    try:
+        forwarded = await bot.forward_message(
+            chat_id=settings.admin_group_id,
+            from_chat_id=message.chat.id,
+            message_id=message.message_id,
+        )
+        await bot.send_message(
+            settings.admin_group_id,
+            header_text,
+            reply_to_message_id=forwarded.message_id,
+        )
+    except TelegramAPIError as e:
+        logger.error(
+            "Failed to forward to admin group %s: %s. "
+            "Check ADMIN_GROUP_ID (должен начинаться с -100) и что бот добавлен в группу.",
+            settings.admin_group_id,
+            e,
+        )
+        return False
+
     mapping = MessageMap(
         user_tg_id=message.from_user.id,
         admin_group_message_id=forwarded.message_id,
@@ -44,6 +59,7 @@ async def deliver_to_admins(message: Message, session: AsyncSession) -> None:
     )
     session.add(mapping)
     await session.commit()
+    return True
 
 
 def _header_for(message: Message) -> str:
