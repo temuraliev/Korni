@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
         await bot.set_webhook(
             url=settings.webhook_url,
             allowed_updates=dp.resolve_used_update_types(),
-            drop_pending_updates=False,
+            drop_pending_updates=True,
         )
         logger.info("Webhook set to %s", settings.webhook_url)
     except Exception as e:
@@ -41,10 +41,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        try:
-            await bot.delete_webhook(drop_pending_updates=False)
-        except Exception as e:
-            logger.warning("delete_webhook failed: %s", e)
+        # НЕ удаляем webhook при shutdown: Railway при редеплое сначала глушит старый контейнер,
+        # а новый поднимается не мгновенно. Если удалить webhook — в окне между контейнерами
+        # апдейты от юзеров копятся, а потом Telegram их может и отбросить. Лучше оставить.
         await bot.session.close()
 
 
