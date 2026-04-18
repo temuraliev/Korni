@@ -24,10 +24,11 @@ def build_dispatcher() -> Dispatcher:
     dp.message.middleware(db_mw)
     dp.callback_query.middleware(db_mw)
 
-    # admin_chat handlers должны идти ПЕРЕД catalog, чтобы reply в группе не падал в общий message-хендлер
-    dp.include_router(admin_chat.router)
-    dp.include_router(broadcast.router)
+    # Порядок важен: сначала специфичные хендлеры (команды, FSM, callback-кнопки),
+    # в конце admin_chat — он ловит свободный текст в ЛС как fallback.
     dp.include_router(start.router)
+    dp.include_router(broadcast.router)
     dp.include_router(catalog.router)
+    dp.include_router(admin_chat.router)
 
     return dp

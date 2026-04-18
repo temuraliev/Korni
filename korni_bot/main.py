@@ -2,7 +2,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from aiogram.types import Update
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 
@@ -26,12 +25,18 @@ async def lifespan(app: FastAPI):
     app.state.bot = bot
     app.state.dispatcher = dp
 
-    await bot.set_webhook(
-        url=settings.webhook_url,
-        allowed_updates=dp.resolve_used_update_types(),
-        drop_pending_updates=False,
-    )
-    logger.info("Webhook set to %s", settings.webhook_url)
+    try:
+        await bot.set_webhook(
+            url=settings.webhook_url,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=False,
+        )
+        logger.info("Webhook set to %s", settings.webhook_url)
+    except Exception as e:
+        logger.error(
+            "Failed to set webhook (%s). App will start anyway — fix WEBHOOK_BASE_URL and redeploy.",
+            e,
+        )
 
     try:
         yield
