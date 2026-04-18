@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from korni_bot.bot import keyboards as kb
 from korni_bot.bot import texts
 from korni_bot.bot.callbacks import BackCB, StartBrowseCB
-from korni_bot.db.models import Category, User
+from korni_bot.db.models import AppSetting, Category, User
 
 router = Router(name="start")
 
@@ -46,7 +46,13 @@ async def _upsert_user(session: AsyncSession, message: Message) -> User:
 async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     await _upsert_user(session, message)
-    await message.answer(texts.START, reply_markup=kb.start_kb())
+    start_photo = await session.get(AppSetting, "start_photo_file_id")
+    if start_photo and start_photo.value:
+        await message.answer_photo(
+            photo=start_photo.value, caption=texts.START, reply_markup=kb.start_kb()
+        )
+    else:
+        await message.answer(texts.START, reply_markup=kb.start_kb())
 
 
 @router.callback_query(StartBrowseCB.filter())

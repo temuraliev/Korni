@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set active = "settings" %}
+{% block content %}
+<h1>Настройки</h1>
+
+<div class="card">
+    <h2 style="margin-top:0">Стартовая картинка</h2>
+    <p class="muted">
+        Картинка, которую бот отправляет пользователю при <code>/start</code>
+        вместе с приветственным текстом. Если не загружена — шлётся только текст.
+    </p>
+
+    {% if start_photo_file_id %}
+        <div class="muted" style="margin-bottom:12px">
+            Сейчас загружено: <code>{{ start_photo_file_id[:32] }}…</code>
+        </div>
+        <form method="post" action="/admin/settings/start_photo" class="inline-form"
+              onsubmit="return confirm('Убрать стартовую картинку?')">
+            <input type="hidden" name="clear" value="on">
+            <button class="btn danger" type="submit">Убрать картинку</button>
+        </form>
+        <hr style="margin:16px 0; border:0; border-top:1px solid #eee">
+    {% endif %}
+
+    <form method="post" action="/admin/settings/start_photo" enctype="multipart/form-data">
+        <label>Загрузить новую картинку</label>
+        <input type="file" name="photo" accept="image/*" required>
+        <div style="margin-top:12px">
+            <button class="btn" type="submit">Сохранить</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

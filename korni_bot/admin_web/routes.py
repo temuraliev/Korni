@@ -20,6 +20,7 @@ from korni_bot.admin_web.deps import BotDep, DbDep
 from korni_bot.bot.handlers.broadcast import run_broadcast
 from korni_bot.config import get_settings
 from korni_bot.db.models import (
+    AppSetting,
     Booking,
     BookingStatus,
     Broadcast,
@@ -422,6 +423,40 @@ def _preview(msg: DialogMessage) -> str:
         "document": "📎 файл",
         "contact": "📞 контакт",
     }.get(msg.content_type, "—")
+
+
+# ─── Settings ─────────────────────────────────────────────────────────────
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, admin: str = AdminDep, session: AsyncSession = DbDep):
+    start_photo = await session.get(AppSetting, "start_photo_file_id")
+    return _render(request, "settings.html", start_photo_file_id=(start_photo.value if start_photo else None))
+
+
+@router.post("/settings/start_photo")
+async def settings_start_photo(
+    photo: UploadFile | None = File(None),
+    clear: str = Form(""),
+    admin: str = AdminDep,
+    session: AsyncSession = DbDep,
+    bot: Bot = BotDep,
+):
+    if clear == "on":
+        await session.execute(delete(AppSetting).where(AppSetting.key == "start_photo_file_id"))
+        await session.commit()
+        return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)
+
+    if photo and photo.filename:
+        file_id = await _upload_photo(bot, photo, "start_photo")
+        if file_id:
+            existing = await session.get(AppSetting, "start_photo_file_id")
+            if existing:
+                existing.value = file_id
+            else:
+                session.add(AppSetting(key="start_photo_file_id", value=file_id))
+            await session.commit()
+    return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ─── Users ────────────────────────────────────────────────────────────────
