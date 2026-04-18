@@ -93,22 +93,34 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         logger.info(
             "on_event event=%s photos=%d simple=%s", event.id, len(photo_ids), simple
         )
+
+        # Telegram лимит на caption у фото и media_group — 1024 символа. Если описание
+        # длинное — отправим фото без подписи, а полный текст с кнопками отдельным сообщением.
+        TG_CAPTION_LIMIT = 1024
+        full_caption = _format_event_caption(event)
         if len(photo_ids) >= 2:
-            # У media-group caption только в первом элементе и без inline-кнопок.
-            # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
-            caption = _format_event_caption(event, include_prompt=False)
-            media = [
-                InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
-                for i, fid in enumerate(photo_ids)
-            ]
-            await cb.message.answer_media_group(media)
-            await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
+            short_caption = _format_event_caption(event, include_prompt=False)
+            if len(short_caption) <= TG_CAPTION_LIMIT:
+                media = [
+                    InputMediaPhoto(media=fid, caption=short_caption if i == 0 else None, parse_mode="HTML")
+                    for i, fid in enumerate(photo_ids)
+                ]
+                await cb.message.answer_media_group(media)
+                await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
+            else:
+                media = [InputMediaPhoto(media=fid) for fid in photo_ids]
+                await cb.message.answer_media_group(media)
+                await cb.message.answer(full_caption, reply_markup=action_kb)
         elif len(photo_ids) == 1:
-            caption = _format_event_caption(event)
-            await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
+            if len(full_caption) <= TG_CAPTION_LIMIT:
+                await cb.message.answer_photo(
+                    photo=photo_ids[0], caption=full_caption, reply_markup=action_kb
+                )
+            else:
+                await cb.message.answer_photo(photo=photo_ids[0])
+                await cb.message.answer(full_caption, reply_markup=action_kb)
         else:
-            caption = _format_event_caption(event)
-            await cb.message.answer(caption, reply_markup=action_kb)
+            await cb.message.answer(full_caption, reply_markup=action_kb)
     except Exception:
         logger.exception("on_event failed for event_id=%s", callback_data.id)
         try:
