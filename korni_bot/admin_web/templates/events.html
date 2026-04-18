@@ -5,7 +5,7 @@
 <div class="card">
 <table>
     <thead>
-    <tr><th>ID</th><th>Название</th><th>Категория</th><th>Дата</th><th>Места</th><th>Активно</th><th></th></tr>
+    <tr><th>ID</th><th>Название</th><th>Категория</th><th>Дата</th><th>Броней</th><th>Активно</th><th></th></tr>
     </thead>
     <tbody>
     {% for e in events %}
@@ -14,7 +14,7 @@
         <td><a href="/admin/events/{{ e.id }}">{{ e.title }}</a></td>
         <td>{{ (categories.get(e.category_id).title if categories.get(e.category_id) else '—') }}</td>
         <td>{{ e.event_date.strftime('%d.%m.%Y %H:%M') if e.event_date else '—' }}</td>
-        <td>{{ booked_map.get(e.id, 0) }} / {{ e.total_seats }}</td>
+        <td>{{ booked_map.get(e.id, 0) }}</td>
         <td>
             {% if e.is_active %}<span class="badge ok">да</span>
             {% else %}<span class="badge err">нет</span>{% endif %}

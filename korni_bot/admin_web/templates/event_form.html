@@ -89,17 +89,9 @@
     <label>Информация о преподавателе / ведущем</label>
     <textarea name="teacher_info">{{ event.teacher_info if event and event.teacher_info else '' }}</textarea>
 
-    <div class="row">
-        <div>
-            <label>Дата и время</label>
-            <input type="datetime-local" name="event_date"
-                   value="{{ event.event_date.strftime('%Y-%m-%dT%H:%M') if event and event.event_date else '' }}">
-        </div>
-        <div>
-            <label>Всего мест</label>
-            <input type="number" name="total_seats" min="0" value="{{ event.total_seats if event else 0 }}">
-        </div>
-    </div>
+    <label>Дата и время</label>
+    <input type="datetime-local" name="event_date"
+           value="{{ event.event_date.strftime('%Y-%m-%dT%H:%M') if event and event.event_date else '' }}">
 
     <label>Обложка (главное фото)</label>
     <div class="dropzone">

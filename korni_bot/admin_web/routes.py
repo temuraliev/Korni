@@ -177,7 +177,6 @@ async def event_create(
     category_id: int = Form(...),
     description: str = Form(""),
     teacher_info: str = Form(""),
-    total_seats: int = Form(0),
     event_date: str = Form(""),
     is_active: str = Form(""),
     photo: UploadFile | None = File(None),
@@ -193,7 +192,6 @@ async def event_create(
         category_id=category_id,
         description=description,
         teacher_info=teacher_info or None,
-        total_seats=total_seats,
         photo_file_id=photo_file_id,
         event_date=_parse_dt(event_date),
         is_active=is_active == "on",
@@ -240,7 +238,6 @@ async def event_update(
     category_id: int = Form(...),
     description: str = Form(""),
     teacher_info: str = Form(""),
-    total_seats: int = Form(0),
     event_date: str = Form(""),
     is_active: str = Form(""),
     photo: UploadFile | None = File(None),
@@ -258,7 +255,6 @@ async def event_update(
     event.category_id = category_id
     event.description = description
     event.teacher_info = teacher_info or None
-    event.total_seats = total_seats
     event.event_date = _parse_dt(event_date)
     event.is_active = is_active == "on"
     if photo and photo.filename:
