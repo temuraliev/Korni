@@ -62,6 +62,7 @@ async def on_back_to_categories(cb: CallbackQuery, session: AsyncSession, state:
 
 
 async def _show_categories(cb: CallbackQuery, session: AsyncSession) -> None:
+    await cb.answer()
     categories = list(
         await session.scalars(
             select(Category).where(Category.is_active.is_(True)).order_by(Category.sort_order, Category.id)
@@ -73,4 +74,3 @@ async def _show_categories(cb: CallbackQuery, session: AsyncSession) -> None:
         await cb.message.edit_text(texts.CATEGORY_PROMPT, reply_markup=kb.categories_kb(categories))
     except Exception:
         await cb.message.answer(texts.CATEGORY_PROMPT, reply_markup=kb.categories_kb(categories))
-    await cb.answer()

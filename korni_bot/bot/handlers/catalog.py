@@ -31,9 +31,12 @@ router = Router(name="catalog")
 
 @router.callback_query(CategoryCB.filter())
 async def on_category(cb: CallbackQuery, callback_data: CategoryCB, session: AsyncSession) -> None:
+    # Сначала гасим спиннер на кнопке — чтобы UI чувствовался быстрым.
+    await cb.answer()
+    assert cb.message is not None
     category = await session.get(Category, callback_data.id)
     if category is None:
-        await cb.answer("Категория не найдена", show_alert=True)
+        await cb.message.answer("Категория не найдена.")
         return
     events = list(
         await session.scalars(
@@ -43,17 +46,13 @@ async def on_category(cb: CallbackQuery, callback_data: CategoryCB, session: Asy
         )
     )
     if not events:
-        assert cb.message is not None
         await cb.message.answer(texts.NO_EVENTS_IN_CATEGORY, reply_markup=kb.events_kb([]))
-        await cb.answer()
         return
     title = f"<b>{category.title}</b>\n\nВыберите мероприятие:"
-    assert cb.message is not None
     try:
         await cb.message.edit_text(title, reply_markup=kb.events_kb(events))
     except Exception:
         await cb.message.answer(title, reply_markup=kb.events_kb(events))
-    await cb.answer()
 
 
 @router.callback_query(BackCB.filter(F.to.startswith("category-")))
@@ -67,9 +66,11 @@ async def on_back_to_category(cb: CallbackQuery, callback_data: BackCB, session:
 
 @router.callback_query(EventCB.filter())
 async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSession) -> None:
+    await cb.answer()
+    assert cb.message is not None
     event = await session.get(Event, callback_data.id)
     if event is None or not event.is_active:
-        await cb.answer("Мероприятие недоступно", show_alert=True)
+        await cb.message.answer("Мероприятие недоступно.")
         return
     booked = await session.scalar(
         select(func.count(Booking.id)).where(
@@ -88,10 +89,8 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         .order_by(EventPhoto.sort_order, EventPhoto.id)
     )
     photo_ids.extend(extra)
-    # Telegram media group — до 10 элементов.
     photo_ids = photo_ids[:10]
 
-    assert cb.message is not None
     action_kb = kb.event_actions_kb(event.id)
     if len(photo_ids) >= 2:
         media = [
@@ -99,13 +98,11 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
             for i, fid in enumerate(photo_ids)
         ]
         await cb.message.answer_media_group(media)
-        # К media-group нельзя прикрепить inline-кнопки — отдаём их отдельным сообщением.
         await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
     elif len(photo_ids) == 1:
         await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
     else:
         await cb.message.answer(caption, reply_markup=action_kb)
-    await cb.answer()
 
 
 def _format_event_caption(event: Event, seats_left: int) -> str:
@@ -125,9 +122,10 @@ def _format_event_caption(event: Event, seats_left: int) -> str:
 
 @router.callback_query(EventActionCB.filter(F.action == "teacher"))
 async def on_teacher(cb: CallbackQuery, callback_data: EventActionCB, session: AsyncSession) -> None:
+    await cb.answer()
+    assert cb.message is not None
     event = await session.get(Event, callback_data.event_id)
     text = (event.teacher_info if event and event.teacher_info else texts.TEACHER_FALLBACK)
-    assert cb.message is not None
 
     teacher_photo_ids: list[str] = []
     if event is not None:
@@ -151,14 +149,15 @@ async def on_teacher(cb: CallbackQuery, callback_data: EventActionCB, session: A
         await cb.message.answer_photo(photo=teacher_photo_ids[0], caption=text, reply_markup=back_kb)
     else:
         await cb.message.answer(text, reply_markup=back_kb)
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "book"))
 async def on_book(cb: CallbackQuery, callback_data: EventActionCB, session: AsyncSession, state: FSMContext) -> None:
+    await cb.answer()
+    assert cb.message is not None
     event = await session.get(Event, callback_data.event_id)
     if event is None or not event.is_active:
-        await cb.answer("Мероприятие недоступно", show_alert=True)
+        await cb.message.answer("Мероприятие недоступно.")
         return
     booked = await session.scalar(
         select(func.count(Booking.id)).where(
@@ -166,19 +165,16 @@ async def on_book(cb: CallbackQuery, callback_data: EventActionCB, session: Asyn
         )
     )
     if (booked or 0) >= event.total_seats:
-        assert cb.message is not None
         await cb.message.answer(texts.BOOKING_NO_SEATS)
-        await cb.answer()
         return
     await state.set_state(BookingFlow.waiting_contact)
     await state.update_data(event_id=event.id)
-    assert cb.message is not None
     await cb.message.answer(texts.ASK_CONTACT_BOOKING, reply_markup=kb.share_contact_kb())
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "question"))
 async def on_question(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
+    await cb.answer()
     assert cb.message is not None
     # event_id == 0 — пришли из меню категорий («У меня есть другой вопрос!»), там подменю не нужно,
     # сразу просим текст. С карточки мероприятия (event_id>0) показываем выбор: написать / позвонить.
@@ -191,36 +187,35 @@ async def on_question(cb: CallbackQuery, callback_data: EventActionCB, state: FS
             texts.QUESTION_MENU_PROMPT,
             reply_markup=kb.question_submenu_kb(callback_data.event_id),
         )
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "qwrite"))
 async def on_qwrite(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
+    await cb.answer()
     await state.set_state(QuestionFlow.waiting_text)
     await state.update_data(event_id=callback_data.event_id or None)
     assert cb.message is not None
     await cb.message.answer(texts.ASK_QUESTION_PROMPT, reply_markup=kb.remove_kb())
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "qcall"))
 async def on_qcall(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
+    await cb.answer()
     await state.set_state(CallbackFlow.waiting_contact)
     await state.update_data(event_id=callback_data.event_id or None)
     assert cb.message is not None
     await cb.message.answer(texts.ASK_CONTACT_CALLBACK, reply_markup=kb.share_contact_kb())
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "qself"))
 async def on_qself(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+    await cb.answer()
     settings = get_settings()
     assert cb.message is not None
     await cb.message.answer(
         texts.SELF_CALL_TEXT.format(phone=settings.restaurant_phone),
         reply_markup=kb.question_submenu_kb(callback_data.event_id),
     )
-    await cb.answer()
 
 
 # ─── Скидка через Instagram ──────────────────────────────────────────────
@@ -228,13 +223,13 @@ async def on_qself(cb: CallbackQuery, callback_data: EventActionCB) -> None:
 
 @router.callback_query(EventActionCB.filter(F.action == "discount"))
 async def on_discount(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+    await cb.answer()
     settings = get_settings()
     assert cb.message is not None
     await cb.message.answer(
         texts.DISCOUNT_OFFER.format(percent=settings.discount_percent),
         reply_markup=kb.discount_kb(callback_data.event_id, settings.instagram_url),
     )
-    await cb.answer()
 
 
 @router.callback_query(EventActionCB.filter(F.action == "discount_check"))

@@ -1,6 +1,8 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from aiogram import Bot, Dispatcher
 from aiogram.types import Update
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
@@ -67,10 +69,20 @@ def create_app() -> FastAPI:
         dp = request.app.state.dispatcher
         payload = await request.json()
         update = Update.model_validate(payload, context={"bot": bot})
-        await dp.feed_update(bot, update)
+        # Отвечаем Telegram 200 мгновенно, обработку кидаем в фон.
+        # Иначе Telegram не шлёт следующий апдейт юзера пока не получит ответ
+        # на текущий → при частых нажатиях кнопок чувствуется лаг.
+        asyncio.create_task(_process_update(dp, bot, update))
         return Response(status_code=200)
 
     return app
+
+
+async def _process_update(dp: Dispatcher, bot: Bot, update: Update) -> None:
+    try:
+        await dp.feed_update(bot, update)
+    except Exception:
+        logger.exception("Update processing failed (update_id=%s)", update.update_id)
 
 
 app = create_app()
