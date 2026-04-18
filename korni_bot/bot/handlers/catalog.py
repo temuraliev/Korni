@@ -1,6 +1,7 @@
 import logging
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
 from sqlalchemy import select
@@ -98,28 +99,42 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         # длинное — отправим фото без подписи, а полный текст с кнопками отдельным сообщением.
         TG_CAPTION_LIMIT = 1024
         full_caption = _format_event_caption(event)
-        if len(photo_ids) >= 2:
-            short_caption = _format_event_caption(event, include_prompt=False)
-            if len(short_caption) <= TG_CAPTION_LIMIT:
-                media = [
-                    InputMediaPhoto(media=fid, caption=short_caption if i == 0 else None, parse_mode="HTML")
-                    for i, fid in enumerate(photo_ids)
-                ]
-                await cb.message.answer_media_group(media)
-                await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
-            else:
-                media = [InputMediaPhoto(media=fid) for fid in photo_ids]
-                await cb.message.answer_media_group(media)
-                await cb.message.answer(full_caption, reply_markup=action_kb)
-        elif len(photo_ids) == 1:
-            if len(full_caption) <= TG_CAPTION_LIMIT:
-                await cb.message.answer_photo(
-                    photo=photo_ids[0], caption=full_caption, reply_markup=action_kb
-                )
-            else:
-                await cb.message.answer_photo(photo=photo_ids[0])
-                await cb.message.answer(full_caption, reply_markup=action_kb)
-        else:
+
+        # file_id привязан к токену бота. Если сменили токен — все старые file_id
+        # перестанут работать ('wrong file identifier'). Пробуем послать фото, если
+        # получаем TelegramBadRequest — падаем на текстовый fallback (и сразу видим в логах).
+        sent_with_photo = False
+        try:
+            if len(photo_ids) >= 2:
+                short_caption = _format_event_caption(event, include_prompt=False)
+                if len(short_caption) <= TG_CAPTION_LIMIT:
+                    media = [
+                        InputMediaPhoto(media=fid, caption=short_caption if i == 0 else None, parse_mode="HTML")
+                        for i, fid in enumerate(photo_ids)
+                    ]
+                    await cb.message.answer_media_group(media)
+                    await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
+                else:
+                    media = [InputMediaPhoto(media=fid) for fid in photo_ids]
+                    await cb.message.answer_media_group(media)
+                    await cb.message.answer(full_caption, reply_markup=action_kb)
+                sent_with_photo = True
+            elif len(photo_ids) == 1:
+                if len(full_caption) <= TG_CAPTION_LIMIT:
+                    await cb.message.answer_photo(
+                        photo=photo_ids[0], caption=full_caption, reply_markup=action_kb
+                    )
+                else:
+                    await cb.message.answer_photo(photo=photo_ids[0])
+                    await cb.message.answer(full_caption, reply_markup=action_kb)
+                sent_with_photo = True
+        except TelegramBadRequest as e:
+            logger.warning(
+                "Failed to send event photos (event_id=%s, reason=%s) — falling back to text",
+                event.id, e,
+            )
+
+        if not sent_with_photo:
             await cb.message.answer(full_caption, reply_markup=action_kb)
     except Exception:
         logger.exception("on_event failed for event_id=%s", callback_data.id)

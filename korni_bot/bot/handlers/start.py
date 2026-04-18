@@ -1,14 +1,19 @@
+import logging
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from korni_bot.bot import keyboards as kb
 from korni_bot.bot import texts
 from korni_bot.bot.callbacks import BackCB, StartBrowseCB
 from korni_bot.db.models import AppSetting, Category, User
+
+logger = logging.getLogger(__name__)
 
 router = Router(name="start")
 
@@ -48,11 +53,20 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
     await _upsert_user(session, message)
     start_photo = await session.get(AppSetting, "start_photo_file_id")
     if start_photo and start_photo.value:
-        await message.answer_photo(
-            photo=start_photo.value, caption=texts.START, reply_markup=kb.start_kb()
-        )
-    else:
-        await message.answer(texts.START, reply_markup=kb.start_kb())
+        try:
+            await message.answer_photo(
+                photo=start_photo.value, caption=texts.START, reply_markup=kb.start_kb()
+            )
+            return
+        except TelegramBadRequest as e:
+            # file_id мог «протухнуть» (сменили токен бота, фото удалено и т.п.).
+            # Чистим запись, чтобы не падать на каждом /start, и шлём только текст.
+            logger.warning("Invalid start_photo_file_id, clearing it: %s", e)
+            await session.execute(
+                delete(AppSetting).where(AppSetting.key == "start_photo_file_id")
+            )
+            await session.commit()
+    await message.answer(texts.START, reply_markup=kb.start_kb())
 
 
 @router.callback_query(StartBrowseCB.filter())
