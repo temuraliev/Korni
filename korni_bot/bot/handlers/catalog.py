@@ -78,8 +78,6 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         )
     )
     seats_left = max(0, event.total_seats - (booked or 0))
-    caption = _format_event_caption(event, seats_left)
-
     photo_ids: list[str] = []
     if event.photo_file_id:
         photo_ids.append(event.photo_file_id)
@@ -93,6 +91,9 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
 
     action_kb = kb.event_actions_kb(event.id)
     if len(photo_ids) >= 2:
+        # У media-group caption только в первом элементе и без inline-кнопок.
+        # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
+        caption = _format_event_caption(event, seats_left, include_prompt=False)
         media = [
             InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
             for i, fid in enumerate(photo_ids)
@@ -100,20 +101,23 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         await cb.message.answer_media_group(media)
         await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
     elif len(photo_ids) == 1:
+        caption = _format_event_caption(event, seats_left)
         await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
     else:
+        caption = _format_event_caption(event, seats_left)
         await cb.message.answer(caption, reply_markup=action_kb)
 
 
-def _format_event_caption(event: Event, seats_left: int) -> str:
+def _format_event_caption(event: Event, seats_left: int, include_prompt: bool = True) -> str:
     parts: list[str] = [f"<b>{event.title}</b>"]
     if event.event_date:
         parts.append(f"📅 {event.event_date.strftime('%d.%m.%Y %H:%M')}")
     if event.description:
         parts.append(event.description)
     parts.append(f"\n<i>Свободных мест: {seats_left} из {event.total_seats}</i>")
-    parts.append("")
-    parts.append(texts.EVENT_ACTIONS_PROMPT)
+    if include_prompt:
+        parts.append("")
+        parts.append(texts.EVENT_ACTIONS_PROMPT)
     return "\n\n".join(parts)
 
 
