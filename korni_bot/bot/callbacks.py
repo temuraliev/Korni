@@ -20,4 +20,4 @@ class EventActionCB(CallbackData, prefix="evact"):
 
 
 class BackCB(CallbackData, prefix="back"):
-    to: str  # root | categories | category:{id}
+    to: str  # root | categories | category-{id}  (":" запрещён — это разделитель aiogram CallbackData)

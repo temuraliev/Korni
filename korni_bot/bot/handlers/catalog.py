@@ -44,9 +44,9 @@ async def on_category(cb: CallbackQuery, callback_data: CategoryCB, session: Asy
     await cb.answer()
 
 
-@router.callback_query(BackCB.filter(F.to.startswith("category:")))
+@router.callback_query(BackCB.filter(F.to.startswith("category-")))
 async def on_back_to_category(cb: CallbackQuery, callback_data: BackCB, session: AsyncSession) -> None:
-    cat_id = int(callback_data.to.split(":", 1)[1])
+    cat_id = int(callback_data.to.split("-", 1)[1])
     await on_category(cb, CategoryCB(id=cat_id), session)
 
 

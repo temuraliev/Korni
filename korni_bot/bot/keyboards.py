@@ -56,7 +56,7 @@ def event_actions_kb(event_id: int) -> InlineKeyboardMarkup:
 
 def back_to_category_kb(category_id: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ К мероприятиям", callback_data=BackCB(to=f"category:{category_id}"))
+    b.button(text="◀️ К мероприятиям", callback_data=BackCB(to=f"category-{category_id}"))
     return b.as_markup()
 
 
