@@ -329,7 +329,16 @@ async def on_booking_contact(message: Message, session: AsyncSession, state: FSM
     session.add(booking)
     await session.commit()
 
-    await message.answer(texts.BOOKING_SUCCESS.format(event_title=event.title), reply_markup=kb.remove_kb())
+    # Первым сообщением закрываем reply-клавиатуру «поделиться контактом»,
+    # вторым — inline-кнопка «Назад к мероприятиям», чтобы юзер не застрял.
+    await message.answer(
+        texts.BOOKING_SUCCESS.format(event_title=event.title),
+        reply_markup=kb.remove_kb(),
+    )
+    await message.answer(
+        "Можете вернуться к списку мероприятий 👇",
+        reply_markup=kb.back_to_category_kb(event.category_id),
+    )
     await _notify_admins_booking(message, event, user, contact.phone_number or "")
 
 
