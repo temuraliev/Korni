@@ -108,7 +108,7 @@ korni/
 ├── alembic.ini
 ├── migrations/
 │   └── versions/0001_initial.py
-└── src/korni_bot/
+└── korni_bot/
     ├── __main__.py
     ├── main.py               # FastAPI + webhook entry point
     ├── config.py             # pydantic-settings
