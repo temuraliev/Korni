@@ -237,7 +237,9 @@ async def on_discount(cb: CallbackQuery, callback_data: EventActionCB) -> None:
 
 
 @router.callback_query(EventActionCB.filter(F.action == "discount_check"))
-async def on_discount_check(cb: CallbackQuery, callback_data: EventActionCB) -> None:
+async def on_discount_check(
+    cb: CallbackQuery, callback_data: EventActionCB, session: AsyncSession
+) -> None:
     settings = get_settings()
     assert cb.message is not None
     await cb.answer()
@@ -257,10 +259,15 @@ async def on_discount_check(cb: CallbackQuery, callback_data: EventActionCB) -> 
     if edit_ok:
         try:
             await cb.message.edit_text(success_text, reply_markup=success_kb)
-            return
         except Exception:
-            pass
-    await cb.message.answer(success_text, reply_markup=success_kb)
+            await cb.message.answer(success_text, reply_markup=success_kb)
+    else:
+        await cb.message.answer(success_text, reply_markup=success_kb)
+
+    # Уведомляем админов: кто-то «подтвердил» подписку и получил код на скидку.
+    event = await session.get(Event, callback_data.event_id) if callback_data.event_id else None
+    user = await _upsert_user_from_cb(session, cb)
+    await _notify_admins_discount(cb, event, user, settings.discount_percent)
 
 
 @router.callback_query(EventActionCB.filter(F.action == "back_to_event"))
@@ -364,6 +371,42 @@ async def _notify_admins_booking(message: Message, event: Event, user: User, pho
         f"Телефон: <code>{phone}</code>"
     )
     await bot.send_message(settings.admin_group_id, text)
+
+
+async def _upsert_user_from_cb(session: AsyncSession, cb: CallbackQuery) -> User:
+    tg_user = cb.from_user
+    assert tg_user is not None
+    user = await session.scalar(select(User).where(User.tg_id == tg_user.id))
+    if user is None:
+        user = User(
+            tg_id=tg_user.id,
+            username=tg_user.username,
+            first_name=tg_user.first_name,
+            last_name=tg_user.last_name,
+        )
+        session.add(user)
+        await session.commit()
+    return user
+
+
+async def _notify_admins_discount(
+    cb: CallbackQuery, event: Event | None, user: User, percent: int
+) -> None:
+    bot = cb.bot
+    assert bot is not None
+    settings = get_settings()
+    text = (
+        f"🎁 <b>Заявка на скидку {percent}%</b>\n"
+        f"Мероприятие: {event.title if event else '—'}\n"
+        f"Пользователь: {_user_display(user)}\n"
+        f"<i>Юзер нажал «Я подписался» — подписку на Instagram проверьте вручную.</i>"
+    )
+    try:
+        await bot.send_message(settings.admin_group_id, text)
+    except Exception:
+        # не роняем flow скидки из-за недоступности админ-группы
+        import logging
+        logging.getLogger(__name__).exception("Failed to notify admins about discount claim")
 
 
 async def _notify_admins_callback(message: Message, event: Event | None, user: User, phone: str) -> None:
