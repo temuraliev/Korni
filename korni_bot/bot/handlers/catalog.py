@@ -1,7 +1,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, InputMediaPhoto, Message
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from korni_bot.bot import keyboards as kb
@@ -70,12 +70,6 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
     if event is None or not event.is_active:
         await cb.message.answer("Мероприятие недоступно.")
         return
-    booked = await session.scalar(
-        select(func.count(Booking.id)).where(
-            Booking.event_id == event.id, Booking.status != BookingStatus.cancelled
-        )
-    )
-    seats_left = max(0, event.total_seats - (booked or 0))
     photo_ids: list[str] = []
     if event.photo_file_id:
         photo_ids.append(event.photo_file_id)
@@ -93,7 +87,7 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
     if len(photo_ids) >= 2:
         # У media-group caption только в первом элементе и без inline-кнопок.
         # Поэтому prompt не кладём в caption, а отдаём отдельным сообщением с кнопками.
-        caption = _format_event_caption(event, seats_left, include_prompt=False)
+        caption = _format_event_caption(event, include_prompt=False)
         media = [
             InputMediaPhoto(media=fid, caption=caption if i == 0 else None, parse_mode="HTML")
             for i, fid in enumerate(photo_ids)
@@ -101,20 +95,19 @@ async def on_event(cb: CallbackQuery, callback_data: EventCB, session: AsyncSess
         await cb.message.answer_media_group(media)
         await cb.message.answer(texts.EVENT_ACTIONS_PROMPT, reply_markup=action_kb)
     elif len(photo_ids) == 1:
-        caption = _format_event_caption(event, seats_left)
+        caption = _format_event_caption(event)
         await cb.message.answer_photo(photo=photo_ids[0], caption=caption, reply_markup=action_kb)
     else:
-        caption = _format_event_caption(event, seats_left)
+        caption = _format_event_caption(event)
         await cb.message.answer(caption, reply_markup=action_kb)
 
 
-def _format_event_caption(event: Event, seats_left: int, include_prompt: bool = True) -> str:
+def _format_event_caption(event: Event, include_prompt: bool = True) -> str:
     parts: list[str] = [f"<b>{event.title}</b>"]
     if event.event_date:
         parts.append(f"📅 {event.event_date.strftime('%d.%m.%Y %H:%M')}")
     if event.description:
         parts.append(event.description)
-    parts.append(f"\n<i>Свободных мест: {seats_left} из {event.total_seats}</i>")
     if include_prompt:
         parts.append("")
         parts.append(texts.EVENT_ACTIONS_PROMPT)
@@ -162,14 +155,6 @@ async def on_book(cb: CallbackQuery, callback_data: EventActionCB, session: Asyn
     event = await session.get(Event, callback_data.event_id)
     if event is None or not event.is_active:
         await cb.message.answer("Мероприятие недоступно.")
-        return
-    booked = await session.scalar(
-        select(func.count(Booking.id)).where(
-            Booking.event_id == event.id, Booking.status != BookingStatus.cancelled
-        )
-    )
-    if (booked or 0) >= event.total_seats:
-        await cb.message.answer(texts.BOOKING_NO_SEATS)
         return
     await state.set_state(BookingFlow.waiting_contact)
     await state.update_data(event_id=event.id)
@@ -296,15 +281,6 @@ async def on_booking_contact(message: Message, session: AsyncSession, state: FSM
     user = await _get_or_create_user(session, message, phone=contact.phone_number)
     if event is None:
         await message.answer("Мероприятие не найдено.", reply_markup=kb.remove_kb())
-        return
-
-    booked = await session.scalar(
-        select(func.count(Booking.id)).where(
-            Booking.event_id == event.id, Booking.status != BookingStatus.cancelled
-        )
-    )
-    if (booked or 0) >= event.total_seats:
-        await message.answer(texts.BOOKING_NO_SEATS, reply_markup=kb.remove_kb())
         return
 
     booking = Booking(user_id=user.id, event_id=event.id, phone=contact.phone_number or "")
