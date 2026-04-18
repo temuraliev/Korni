@@ -45,12 +45,14 @@ def events_kb(events: list[Event]) -> InlineKeyboardMarkup:
 
 
 def event_actions_kb(event_id: int, category_id: int, simple: bool = False) -> InlineKeyboardMarkup:
-    """simple=True скрывает кнопки «Преподаватель» и «Скидка» — для категорий вроде «Игры»."""
+    """simple=True — для категорий-«игр»: скрываем «Преподаватель»/«Скидка», добавляем «Другая игра»."""
     b = InlineKeyboardBuilder()
     b.button(text="Все понятно, хочу забронировать!", callback_data=EventActionCB(event_id=event_id, action="book"))
     if not simple:
         b.button(text="Подробнее про преподавателя", callback_data=EventActionCB(event_id=event_id, action="teacher"))
     b.button(text="У меня есть вопрос", callback_data=EventActionCB(event_id=event_id, action="question"))
+    if simple:
+        b.button(text="🎲 Я хочу другую игру", callback_data=EventActionCB(event_id=event_id, action="other_game"))
     if not simple:
         b.button(text="🎁 Я хочу получить скидку", callback_data=EventActionCB(event_id=event_id, action="discount"))
     b.button(text="◀️ Назад", callback_data=BackCB(to=f"category-{category_id}"))

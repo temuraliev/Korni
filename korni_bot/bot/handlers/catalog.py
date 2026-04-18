@@ -176,7 +176,7 @@ async def on_book(cb: CallbackQuery, callback_data: EventActionCB, session: Asyn
     await cb.message.answer(texts.ASK_CONTACT_BOOKING, reply_markup=kb.share_contact_kb())
 
 
-@router.callback_query(EventActionCB.filter(F.action == "question"))
+@router.callback_query(EventActionCB.filter(F.action.in_({"question", "other_game"})))
 async def on_question(cb: CallbackQuery, callback_data: EventActionCB, state: FSMContext) -> None:
     await cb.answer()
     assert cb.message is not None
